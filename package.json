@@ -1,0 +1,8 @@
+{
+  "name": "keyo-proposal",
+  "version": "1.0.0",
+  "scripts": {
+    "start": "npx serve . -p 3000",
+    "dev": "npx serve . -p 3000"
+  }
+}
