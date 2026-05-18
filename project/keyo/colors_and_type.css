@@ -1,0 +1,390 @@
+/* ============================================================
+   KEYO Design System — Foundations
+   Colors, typography, spacing, motion.
+   ============================================================ */
+
+/* --- Web fonts ------------------------------------------------ */
+@font-face {
+  font-family: "Inter";
+  font-style: normal;
+  font-weight: 300;
+  font-display: swap;
+  src: url("./fonts/Inter-Light.ttf") format("truetype");
+}
+@font-face {
+  font-family: "Inter";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("./fonts/Inter-Regular.ttf") format("truetype");
+}
+@font-face {
+  font-family: "Inter";
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("./fonts/Inter-Medium.ttf") format("truetype");
+}
+@font-face {
+  font-family: "Inter";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("./fonts/Inter-SemiBold.ttf") format("truetype");
+}
+@font-face {
+  font-family: "Inter";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("./fonts/Inter-Bold.ttf") format("truetype");
+}
+/* Optical-size 28pt — for display sizes (>=64px) */
+@font-face {
+  font-family: "Inter Display";
+  font-style: normal;
+  font-weight: 300;
+  font-display: swap;
+  src: url("./fonts/Inter28-Light.ttf") format("truetype");
+}
+@font-face {
+  font-family: "Inter Display";
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("./fonts/Inter28-Medium.ttf") format("truetype");
+}
+
+:root {
+  /* ---------- Brand palette --------------------------------- */
+  --keyo-green: #005032;        /* primary CTA, link accent, footer wordmark */
+  --keyo-green-700: #003a24;    /* hover */
+  --keyo-green-300: #4d8a72;    /* tints */
+
+  /* ---------- Ink (foreground) ------------------------------ */
+  --ink-900: #0D1016;           /* primary text + dark sections */
+  --ink-800: #1C1C1C;
+  --ink-700: #343434;           /* body alt */
+  --ink-600: #353432;           /* warm dark on bone */
+  --ink-500: #68655E;           /* muted body, eyebrow caption */
+  --ink-400: #8F8D8A;           /* disabled / arrow on dark */
+  --ink-300: #D0CDC8;           /* divider on light */
+  --ink-200: #E6E6E6;           /* neutral chip / inactive */
+
+  /* ---------- Paper (background) ---------------------------- */
+  --paper: #FAFAF9;             /* canonical page background — warm bone */
+  --paper-50: #F8F8F8;
+  --paper-100: #EEEEEE;
+  --bone: #E1DFDA;              /* warm beige feature panel */
+  --bone-deep: #E2DCD4;
+  --canvas: #FFFFFF;
+
+  /* ---------- Semantic -------------------------------------- */
+  --fg-1: var(--ink-900);       /* headings, primary text */
+  --fg-2: var(--ink-500);       /* secondary copy, captions */
+  --fg-3: var(--ink-400);       /* tertiary / disabled */
+  --fg-on-dark: #FFFFFF;
+  --fg-on-dark-muted: #E6E6E6;
+
+  --bg-page: var(--paper);
+  --bg-feature: var(--bone);
+  --bg-dark: var(--ink-900);
+  --bg-card: var(--canvas);
+
+  --border: var(--ink-300);
+  --border-on-dark: var(--ink-700);
+
+  --accent: var(--keyo-green);
+  --accent-fg: #FFFFFF;
+
+  /* Overlay gradients used over imagery */
+  --overlay-hero: linear-gradient(rgba(0,0,0,0.5) 0%, rgba(0,0,0,0.1) 13%, rgba(0,0,0,0.1) 72%, rgba(0,0,0,0.5) 100%);
+  --overlay-card: linear-gradient(rgba(0,0,0,0.4) 0%, rgba(67,81,112,0.2) 15%, rgba(67,81,112,0) 100%);
+  --overlay-eyebrow: linear-gradient(rgba(0,0,0,0.6) 0%, rgba(0,0,0,0) 75%);
+
+  /* ---------- Typography ------------------------------------ */
+  --font-sans: "Inter", -apple-system, "Segoe UI", system-ui, sans-serif;
+  --font-display: "Inter Display", "Inter", -apple-system, system-ui, sans-serif;
+
+  /* Type scale — derived directly from the source design.
+     Tracking is tight on display, neutral on body. */
+  --fs-display: 92px;           /* hero, footer wordmark */
+  --fs-h1: 56px;                /* hero headline */
+  --fs-h2: 42px;                /* section heading */
+  --fs-h3: 34px;                /* sub-section */
+  --fs-h4: 22.7px;              /* eyebrow-large / lead */
+  --fs-lead: 15.3px;            /* subhead caption */
+  --fs-body: 13.5px;            /* body, link, button */
+  --fs-body-sm: 13.4px;
+  --fs-caption: 12.9px;         /* arrow links */
+  --fs-micro: 11.4px;           /* eyebrow, item caption */
+
+  --lh-display: 0.96;
+  --lh-h1: 1.10;
+  --lh-h2: 1.10;
+  --lh-h3: 1.26;
+  --lh-h4: 1.27;
+  --lh-body: 1.46;              /* 19.71px on 13.5 */
+  --lh-tight: 1.20;
+
+  --tracking-display: -0.030em; /* -2.88px on 96 */
+  --tracking-h1:     -0.043em;  /* -2.40px on 56 */
+  --tracking-h2:     -0.031em;  /* -1.32px on 42 */
+  --tracking-h3:     -0.021em;  /* -0.72px on 34 */
+  --tracking-h4:     -0.011em;  /* -0.24px on 22.7 */
+  --tracking-body:    0em;
+
+  --fw-light: 300;
+  --fw-regular: 400;
+  --fw-medium: 500;   /* THE default — every label/heading in the system is 500 */
+  --fw-semibold: 600;
+  --fw-bold: 700;
+
+  /* ---------- Layout ---------------------------------------- */
+  --max-w: 1680px;              /* container width inside 1920 viewport */
+  --gutter: 120px;              /* large desktop margin */
+  --gutter-sm: 24px;
+
+  /* ---------- Spacing scale (4 / 8 / 16 / 24 base) ---------- */
+  /* Numeric scale — use these for everything. */
+  --space-1:   4px;
+  --space-2:   8px;
+  --space-3:  16px;
+  --space-4:  24px;
+  --space-5:  32px;
+  --space-6:  48px;
+  --space-7:  64px;
+  --space-8:  96px;
+  --space-9: 128px;
+  --space-10: 192px;
+
+  /* Semantic aliases — keep these in sync with the numeric scale. */
+  --space-xs:  var(--space-1);   /*   4 */
+  --space-s:   var(--space-2);   /*   8 */
+  --space-m:   var(--space-3);   /*  16 */
+  --space-l:   var(--space-4);   /*  24 */
+  --space-xl:  var(--space-6);   /*  48 */
+  --space-xxl: var(--space-10);  /* 192 — between major sections */
+
+  /* ---------- Radii ----------------------------------------- */
+  --r-0: 0px;                   /* default — most cards have no radius */
+  --r-1: 2px;                   /* media frames inside feature panels */
+  --r-pill: 48px;               /* primary CTA */
+  --r-full: 999px;              /* progress dot, nav arrow circle */
+
+  /* ---------- Glass / translucency -------------------------- */
+  /* Used for nav dropdowns, floating bars, in-image overlays.
+     Two tints: dark over imagery, light over dark sections.
+     Always pair with backdrop-filter or fall back to a flat tint. */
+  --glass-dark-bg: rgba(13, 16, 22, 0.42);
+  --glass-dark-border: 1px solid rgba(255, 255, 255, 0.10);
+  --glass-light-bg: rgba(250, 250, 249, 0.62);
+  --glass-light-border: 1px solid rgba(13, 16, 22, 0.06);
+  --glass-blur: saturate(150%) blur(28px);
+  --glass-blur-strong: saturate(160%) blur(48px);
+  --glass-radius: 14px;
+  --glass-radius-bar: 999px;
+  --glass-shadow: 0 10px 40px rgba(0, 0, 0, 0.18);
+
+  /* ---------- Borders & shadows ----------------------------- */
+  --hairline: 1px solid var(--border);
+  --hairline-dark: 1px solid var(--border-on-dark);
+  --shadow-none: none;
+  --shadow-soft: 0 1px 2px rgba(13,16,22,0.04);
+  /* The system is essentially shadowless — depth comes from
+     section backgrounds, not elevation. Use shadows sparingly. */
+
+  /* ---------- Motion ---------------------------------------- */
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --dur-fast: 120ms;
+  --dur-base: 220ms;
+  --dur-slow: 480ms;
+}
+
+/* --- Base resets --------------------------------------------- */
+*, *::before, *::after { box-sizing: border-box; }
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg-page);
+  color: var(--fg-1);
+  font-family: var(--font-sans);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+  font-weight: var(--fw-medium);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+/* --- Semantic type ------------------------------------------- */
+.k-display {
+  font-family: var(--font-display);
+  font-weight: var(--fw-medium);
+  font-size: var(--fs-display);
+  line-height: var(--lh-display);
+  letter-spacing: var(--tracking-display);
+  color: var(--fg-1);
+}
+.k-h1, h1 {
+  font-family: var(--font-sans);
+  font-weight: var(--fw-medium);
+  font-size: var(--fs-h1);
+  line-height: var(--lh-h1);
+  letter-spacing: var(--tracking-h1);
+  margin: 0;
+}
+.k-h2, h2 {
+  font-family: var(--font-sans);
+  font-weight: var(--fw-medium);
+  font-size: var(--fs-h2);
+  line-height: var(--lh-h2);
+  letter-spacing: var(--tracking-h2);
+  margin: 0;
+}
+.k-h3, h3 {
+  font-family: var(--font-sans);
+  font-weight: var(--fw-medium);
+  font-size: var(--fs-h3);
+  line-height: var(--lh-h3);
+  letter-spacing: var(--tracking-h3);
+  margin: 0;
+}
+.k-h4, h4 {
+  font-family: var(--font-sans);
+  font-weight: var(--fw-medium);
+  font-size: var(--fs-h4);
+  line-height: var(--lh-h4);
+  letter-spacing: var(--tracking-h4);
+  margin: 0;
+}
+.k-lead {
+  font-weight: var(--fw-medium);
+  font-size: var(--fs-lead);
+  line-height: var(--lh-body);
+  color: var(--fg-2);
+}
+.k-body, p {
+  font-weight: var(--fw-medium);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+  color: var(--fg-1);
+  margin: 0;
+}
+.k-body-muted {
+  color: var(--fg-2);
+}
+.k-caption {
+  font-weight: var(--fw-medium);
+  font-size: var(--fs-caption);
+  line-height: var(--lh-body);
+  color: var(--fg-1);
+}
+.k-micro,
+.k-eyebrow {
+  font-weight: var(--fw-regular);
+  font-size: var(--fs-micro);
+  line-height: 1.47;
+  color: var(--fg-2);
+}
+.k-eyebrow {
+  /* No uppercase — KEYO/Legora keeps eyebrows in sentence case. */
+  letter-spacing: 0;
+}
+
+a { color: inherit; text-decoration: none; }
+a:hover { opacity: 0.7; transition: opacity var(--dur-base) var(--ease-standard); }
+
+img, svg { display: block; max-width: 100%; }
+
+/* --- Primary CTA --------------------------------------------- */
+.k-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  height: 30px;
+  padding: 0 5px 0 15px;
+  border-radius: var(--r-pill);
+  background: var(--keyo-green);
+  color: var(--accent-fg);
+  font-weight: var(--fw-medium);
+  font-size: var(--fs-body);
+  letter-spacing: 0;
+  cursor: pointer;
+  border: 0;
+  transition: background var(--dur-base) var(--ease-standard);
+}
+.k-btn:hover { background: var(--keyo-green-700); opacity: 1; }
+.k-btn__chip {
+  display: inline-grid;
+  place-items: center;
+  width: 20px; height: 20px;
+  border-radius: var(--r-full);
+  background: #fff;
+  color: var(--ink-900);
+}
+.k-btn--ghost {
+  background: transparent;
+  color: var(--ink-900);
+  padding: 0 12px;
+}
+.k-btn--ghost:hover { background: transparent; opacity: 0.65; }
+
+/* Arrow link — appears all over the design. The arrow is just '↳'. */
+.k-arrow {
+  font-weight: var(--fw-medium);
+  font-size: var(--fs-caption);
+  color: var(--ink-900);
+  display: inline-flex;
+  gap: 4px;
+}
+.k-arrow--muted { color: var(--fg-2); }
+.k-arrow--on-dark { color: var(--fg-on-dark-muted); }
+.k-arrow--h4 {
+  font-size: var(--fs-h3);
+  line-height: var(--lh-h3);
+  letter-spacing: var(--tracking-h3);
+}
+
+/* --- Layout primitives --------------------------------------- */
+.k-section { padding-block: var(--space-xxl); }
+.k-section--tight { padding-block: var(--space-l); }
+.k-container {
+  width: 100%;
+  max-width: var(--max-w);
+  margin-inline: auto;
+  padding-inline: var(--gutter);
+}
+.k-rule { border-top: var(--hairline); }
+.k-rule-dark { border-top: var(--hairline-dark); }
+
+/* --- Glass utilities ----------------------------------------- */
+/* Dark glass — sits over imagery or dark backgrounds. */
+.k-glass {
+  background: var(--glass-dark-bg);
+  -webkit-backdrop-filter: var(--glass-blur);
+          backdrop-filter: var(--glass-blur);
+  border: var(--glass-dark-border);
+  border-radius: var(--glass-radius);
+  color: var(--fg-on-dark);
+  box-shadow: var(--glass-shadow);
+}
+.k-glass--light {
+  background: var(--glass-light-bg);
+  border: var(--glass-light-border);
+  color: var(--fg-1);
+}
+.k-glass--bar {
+  border-radius: var(--glass-radius-bar);
+  padding: 8px 16px;
+}
+.k-glass--strong {
+  -webkit-backdrop-filter: var(--glass-blur-strong);
+          backdrop-filter: var(--glass-blur-strong);
+}
+/* Graceful fallback for engines without backdrop-filter */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .k-glass { background: rgba(13, 16, 22, 0.78); }
+  .k-glass--light { background: rgba(250, 250, 249, 0.92); }
+}
