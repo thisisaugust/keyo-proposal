@@ -1,19 +1,20 @@
 // KEYO Admin Dashboard
-// Manages all proposals: create, edit, templates, last-opened tracking.
+// Manages proposals, reference library, and templates.
 
-const { useState, useEffect, useRef } = React;
+const { useState, useRef } = React;
 
 // ── Storage keys ──────────────────────────────────────────────
 const PROPOSALS_KEY = 'keyo-admin-proposals';
 const TEMPLATES_KEY = 'keyo-admin-templates';
+const LIBRARY_KEY   = 'keyo-ref-library';
 const OPENED_PREFIX = 'keyo-opened:';
 
 // ── Utilities ─────────────────────────────────────────────────
-const genProposalId = () => {
+const genId = (prefix = 'KEYO') => {
   const y = new Date().getFullYear();
-  const n = String(Math.floor(Math.random() * 9000) + 1000);
-  return `KEYO-${y}-${n}`;
+  return `${prefix}-${y}-${String(Math.floor(Math.random() * 9000) + 1000)}`;
 };
+const genShortId = () => Math.random().toString(36).slice(2, 9);
 
 const slugify = (s) =>
   (s || '').toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '').slice(0, 22) || 'proposal';
@@ -39,7 +40,6 @@ const relTime = (iso) => {
   return `${Math.floor(d / 7)} uger siden`;
 };
 
-// Card tint class based on proposal age
 const ageClass = (createdAt) => {
   if (!createdAt) return '';
   const d = Math.floor((Date.now() - new Date(createdAt).getTime()) / 86400000);
@@ -51,58 +51,55 @@ const ageClass = (createdAt) => {
 
 const todayDK = () =>
   new Date().toLocaleDateString('da-DK', { day: 'numeric', month: 'long', year: 'numeric' });
-
 const validUntilDK = () => {
-  const d = new Date();
-  d.setDate(d.getDate() + 30);
+  const d = new Date(); d.setDate(d.getDate() + 30);
   return d.toLocaleDateString('da-DK', { day: 'numeric', month: 'long', year: 'numeric' });
 };
-
 const fmtNum = (n) => new Intl.NumberFormat('da-DK').format(n);
 
-// Client-facing proposal URL
 const proposalUrl = (viewerId) => {
-  const base = window.location.href.replace(/admin\.html.*$/, '');
+  const base = window.location.href.replace(/admin(\.html)?.*$/, '');
   return `${base}?id=${viewerId}`;
 };
 
-// ── LocalStorage helpers ───────────────────────────────────────
-const loadProposals = () => {
-  try { return JSON.parse(localStorage.getItem(PROPOSALS_KEY) || '[]'); } catch { return []; }
+// ── Storage helpers ────────────────────────────────────────────
+const load = (key, fallback) => {
+  try { return JSON.parse(localStorage.getItem(key) || 'null') ?? fallback; } catch { return fallback; }
 };
-const saveProposals = (list) => localStorage.setItem(PROPOSALS_KEY, JSON.stringify(list));
+const save = (key, val) => localStorage.setItem(key, JSON.stringify(val));
 
-const loadTemplates = () => {
-  try { return JSON.parse(localStorage.getItem(TEMPLATES_KEY) || '[]'); } catch { return []; }
-};
-const saveTemplates = (list) => localStorage.setItem(TEMPLATES_KEY, JSON.stringify(list));
+const getOpenedInfo = (viewerId) => load(OPENED_PREFIX + viewerId, null);
 
-const getOpenedInfo = (viewerId) => {
-  try { return JSON.parse(localStorage.getItem(OPENED_PREFIX + viewerId) || 'null'); } catch { return null; }
-};
-
-// Sync full proposal data so the viewer (index.html) can load it
 const syncToViewer = (p) => {
-  localStorage.setItem(`keyo-proposal:${p.viewerId}`, JSON.stringify({
-    clientName: p.clientName,
-    preparedFor: p.preparedFor,
-    preparedBy: p.preparedBy,
-    date: p.date,
-    validUntil: p.validUntil,
-    proposalId: p.id,
-    greeting: p.greeting,
-    selectedServices: p.selectedServices,
-    selectedReferences: p.selectedReferences,
-    customServices: p.customServices || [],
-    calcInputs: p.calcInputs,
-  }));
+  save(`keyo-proposal:${p.viewerId}`, {
+    clientName: p.clientName, preparedFor: p.preparedFor, preparedBy: p.preparedBy,
+    date: p.date, validUntil: p.validUntil, proposalId: p.id,
+    greeting: p.greeting, heroImage: p.heroImage,
+    selectedServices: p.selectedServices, selectedReferences: p.selectedReferences,
+    customServices: p.customServices || [], calcInputs: p.calcInputs,
+  });
 };
+
+// Merge standard + custom library refs for a category
+const allRefs = (cat, library) => [
+  ...(KEYO_DATA.REFERENCES[cat] || []),
+  ...(library[cat] || []),
+];
+
+// ── Hero images ───────────────────────────────────────────────
+const HERO_IMAGES = [
+  { src: 'keyo/img/property-1.jpg', label: 'Villa' },
+  { src: 'keyo/img/property-2.jpg', label: 'Penthouse' },
+  { src: 'keyo/img/property-3.png', label: 'Rækkehus' },
+  { src: 'keyo/img/property-4.png', label: 'Park' },
+  { src: 'keyo/img/property-5.png', label: 'Bolig' },
+  { src: 'keyo/img/office-interior.png', label: 'Kontor' },
+];
 
 // ── Icons ──────────────────────────────────────────────────────
 const EyeIcon = () => (
   <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-    <circle cx="12" cy="12" r="3"/>
+    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
   </svg>
 );
 const PlusIcon = () => (
@@ -117,13 +114,17 @@ const TrashIcon = () => (
 );
 const LinkIcon = () => (
   <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-    <path d="M10 13a5 5 0 007 0l3-3a5 5 0 00-7-7l-1.5 1.5"/>
-    <path d="M14 11a5 5 0 00-7 0l-3 3a5 5 0 007 7l1.5-1.5"/>
+    <path d="M10 13a5 5 0 007 0l3-3a5 5 0 00-7-7l-1.5 1.5"/><path d="M14 11a5 5 0 00-7 0l-3 3a5 5 0 007 7l1.5-1.5"/>
   </svg>
 );
 const ExternalIcon = () => (
   <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6M15 3h6v6M10 14L21 3"/>
+  </svg>
+);
+const CheckIcon = () => (
+  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+    <path d="M5 13l4 4L19 7"/>
   </svg>
 );
 
@@ -135,17 +136,14 @@ const KeyoWordmark = () => (
 
 // ── Toggle ─────────────────────────────────────────────────────
 const Toggle = ({ on, onChange }) => (
-  <button
-    type="button"
-    className={`toggle ${on ? 'toggle--on' : ''}`}
-    onClick={(e) => { e.stopPropagation(); onChange(!on); }}
-  />
+  <button type="button" className={`toggle ${on ? 'toggle--on' : ''}`}
+    onClick={(e) => { e.stopPropagation(); onChange(!on); }} />
 );
 
 // ── Toast ──────────────────────────────────────────────────────
 const Toast = ({ msg }) => <div className="toast">{msg}</div>;
 
-// ── Proposal sidebar card ─────────────────────────────────────
+// ── Proposal sidebar card ──────────────────────────────────────
 const ProposalCard = ({ p, isActive, onClick }) => {
   const info = getOpenedInfo(p.viewerId);
   const seen = info?.lastOpened;
@@ -156,8 +154,7 @@ const ProposalCard = ({ p, isActive, onClick }) => {
       <div className="pcard__footer">
         <span className="pcard__date">{fmtDateDK(p.createdAt)}</span>
         <span className={`pcard__opened ${seen ? 'pcard__opened--seen' : ''}`}>
-          <EyeIcon />
-          {seen ? relTime(seen) : 'Ikke åbnet'}
+          <EyeIcon /> {seen ? relTime(seen) : 'Ikke åbnet'}
         </span>
       </div>
     </div>
@@ -184,7 +181,6 @@ const Dashboard = ({ proposals, templates, onNew, onApplyTemplate, onDeleteTempl
           {total === 0 ? 'Ingen tilbud endnu.' : `${total} tilbud oprettet.`}
         </h1>
       </div>
-
       <div className="stats-row">
         <div className="stat-cell">
           <div className="stat-cell__val stat-cell__val--green">{total}</div>
@@ -203,19 +199,16 @@ const Dashboard = ({ proposals, templates, onNew, onApplyTemplate, onDeleteTempl
       <div className="section-head">
         <h2 className="section-head__title">Templates</h2>
       </div>
-
       <div className="template-grid">
         {templates.map(t => {
-          const svcNames = KEYO_DATA.STANDARD_SERVICES
-            .filter(s => t.selectedServices?.[s.id])
-            .map(s => s.title);
+          const svcNames = KEYO_DATA.STANDARD_SERVICES.filter(s => t.selectedServices?.[s.id]).map(s => s.title);
           const refCount = Object.values(t.selectedReferences || {}).reduce((s, a) => s + a.length, 0);
           return (
             <div key={t.id} className="tcard">
               <div className="tcard__name">{t.name}</div>
               <div className="tcard__chips">
                 {svcNames.slice(0, 4).map(n => <span key={n} className="tcard__chip">{n}</span>)}
-                {svcNames.length > 4 && <span className="tcard__chip">+{svcNames.length - 4} mere</span>}
+                {svcNames.length > 4 && <span className="tcard__chip">+{svcNames.length - 4}</span>}
               </div>
               <div className="tcard__meta">{svcNames.length} ydelser · {refCount} referencer</div>
               <div className="tcard__actions">
@@ -225,40 +218,239 @@ const Dashboard = ({ proposals, templates, onNew, onApplyTemplate, onDeleteTempl
             </div>
           );
         })}
-
-        <button className="tcard-add" onClick={onNew}>
-          <PlusIcon /> Opret nyt tilbud
-        </button>
+        <button className="tcard-add" onClick={onNew}><PlusIcon /> Opret nyt tilbud</button>
       </div>
 
       {total === 0 && (
         <div className="empty-state">
           <div className="empty-state__title">Klar til det første tilbud.</div>
-          <div className="empty-state__sub">Opret et tilbud, og klienten får sin egen unikke URL — klar til at dele.</div>
-          <button className="btn btn--primary" style={{ marginTop: 8 }} onClick={onNew}>
-            <PlusIcon /> Opret første tilbud
-          </button>
+          <div className="empty-state__sub">Opret et tilbud — klienten får sin egen unikke URL klar til at dele.</div>
+          <button className="btn btn--primary" style={{ marginTop: 8 }} onClick={onNew}><PlusIcon /> Opret første tilbud</button>
         </div>
       )}
     </div>
   );
 };
 
-// ── Proposal form (create + edit) ──────────────────────────────
+// ── Reference Library ──────────────────────────────────────────
 const REF_CATS = [
   { id: 'meta_ads', label: 'Meta Ads' },
   { id: 'flyers',   label: 'Grafisk materiale' },
   { id: 'landing',  label: 'Landing pages' },
 ];
 
-const blankForm = (templateOverride = null) => {
+const blankCustomRef = (cat) => {
+  if (cat === 'meta_ads') return { platform: 'facebook', brand: '', copy: '', image: '', headline: '', cta: 'Book fremvisning', url: '', avatarColor: '#005032' };
+  if (cat === 'flyers')   return { image: '', address: '', city: '', rooms: '', sqm: '', plot: '', price: '', brand: '', agent: '', badge: 'Til salg' };
+  return { url: '', image: '', brand: '', eyebrow: '', headline: '', sub: '', button: 'Bestil vurdering', navLinks: ['Boliger', 'Sælg', 'Vurdering', 'Kontakt'] };
+};
+
+const CustomRefForm = ({ cat, onSave, onCancel }) => {
+  const [form, setForm] = useState(blankCustomRef(cat));
+  const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
+  const field = (label, key, placeholder = '') => (
+    <div className="form-field">
+      <label className="form-label">{label}</label>
+      <input className="form-input" value={form[key] || ''} onChange={e => set(key, e.target.value)} placeholder={placeholder} />
+    </div>
+  );
+
+  const handleSave = () => {
+    if (cat === 'meta_ads' && !form.brand) return;
+    if (cat === 'flyers' && !form.address) return;
+    if (cat === 'landing' && !form.headline) return;
+    onSave({ ...form, id: 'custom_' + genShortId(), custom: true });
+  };
+
+  return (
+    <div className="custom-ref-form">
+      <div className="form-grid" style={{ marginBottom: 20 }}>
+        {cat === 'meta_ads' && (<>
+          <div className="form-field">
+            <label className="form-label">Platform</label>
+            <select className="form-input" value={form.platform} onChange={e => set('platform', e.target.value)}>
+              <option value="facebook">Facebook</option>
+              <option value="instagram">Instagram</option>
+            </select>
+          </div>
+          {field('Brandnavn *', 'brand', 'fx Estate Charlottenlund')}
+          <div className="form-field form-field--full">{field('Annoncetekst', 'copy', 'Kort beskrivende tekst...')}</div>
+          {field('Billede-URL', 'image', 'https://...')}
+          {field('Headline (CTA-bar)', 'headline', 'fx Strandvejen 142 · 168 m²')}
+          {field('CTA-knaptekst', 'cta', 'Book fremvisning')}
+          {field('URL (domain)', 'url', 'fx estate-charlottenlund.dk')}
+        </>)}
+        {cat === 'flyers' && (<>
+          <div className="form-field form-field--full">{field('Adresse *', 'address', 'fx Strandvejen 142, 2920 Charlottenlund')}</div>
+          {field('Boligtype', 'city', 'fx Fritliggende villa')}
+          {field('Billede-URL', 'image', 'https://...')}
+          {field('Rum', 'rooms', '4')}
+          {field('Areal (m²)', 'sqm', '168')}
+          {field('Grundareal (m²)', 'plot', '920')}
+          {field('Pris (kr.)', 'price', '11.495.000')}
+          {field('Mæglernavn', 'brand', 'fx Estate · Charlottenlund')}
+          {field('Mægler + tlf.', 'agent', 'Sofie Lindgren · 28 41 92 03')}
+        </>)}
+        {cat === 'landing' && (<>
+          {field('URL', 'url', 'estate-charlottenlund.dk/saelg')}
+          {field('Brandnavn *', 'brand', 'fx ESTATE')}
+          {field('Overskrift *', 'headline', 'Hvad er din bolig værd i dag?')}
+          <div className="form-field form-field--full">{field('Underoverskrift', 'sub', 'Kort beskrivelse...')}</div>
+          {field('Øjenbryn (eyebrow)', 'eyebrow', 'fx Salgsvurdering')}
+          {field('CTA-knaptekst', 'button', 'Bestil vurdering')}
+          {field('Billede-URL', 'image', 'https://...')}
+        </>)}
+      </div>
+      <div style={{ display: 'flex', gap: 8 }}>
+        <button className="btn" onClick={onCancel}>Annullér</button>
+        <button className="btn btn--primary" onClick={handleSave}>Tilføj til bibliotek</button>
+      </div>
+    </div>
+  );
+};
+
+const LibraryView = ({ library, onAddCustom, onDeleteCustom }) => {
+  const [cat, setCat] = useState('meta_ads');
+  const [adding, setAdding] = useState(false);
+
+  const refs = allRefs(cat, library);
+  const customRefs = library[cat] || [];
+
+  const handleSave = (ref) => {
+    onAddCustom(cat, ref);
+    setAdding(false);
+  };
+
+  return (
+    <div>
+      <div className="dash-header">
+        <div className="dash-eyebrow">Indhold</div>
+        <h1 className="dash-title">Referencebiblotek.</h1>
+      </div>
+      <p style={{ fontSize: 'var(--fs-body)', color: 'var(--ink-500)', fontWeight: 500, marginBottom: 40, marginTop: -24, maxWidth: 560, lineHeight: 1.6 }}>
+        Tilføj og administrér dit referencemateriale her. Alt du tilføjer kan bruges i tilbud.
+      </p>
+
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
+        <div className="ref-tabs">
+          {REF_CATS.map(c => (
+            <button key={c.id} className={`ref-tab ${cat === c.id ? 'ref-tab--active' : ''}`}
+              onClick={() => { setCat(c.id); setAdding(false); }}>
+              {c.label}
+              <span className="ref-tab__count">{(KEYO_DATA.REFERENCES[c.id] || []).length + (library[c.id] || []).length}</span>
+            </button>
+          ))}
+        </div>
+        {!adding && (
+          <button className="btn btn--primary" onClick={() => setAdding(true)}>
+            <PlusIcon /> Tilføj materiale
+          </button>
+        )}
+      </div>
+
+      {adding && (
+        <div style={{ marginBottom: 32 }}>
+          <div className="section-head" style={{ marginBottom: 20 }}>
+            <h3 className="section-head__title">Nyt {REF_CATS.find(c => c.id === cat)?.label}-materiale</h3>
+          </div>
+          <CustomRefForm cat={cat} onSave={handleSave} onCancel={() => setAdding(false)} />
+        </div>
+      )}
+
+      <div className="section-head">
+        <h2 className="section-head__title">Standard ({(KEYO_DATA.REFERENCES[cat] || []).length})</h2>
+      </div>
+      <div className="lib-grid" style={{ marginBottom: 40 }}>
+        {(KEYO_DATA.REFERENCES[cat] || []).map(ref => (
+          <div key={ref.id} className="lib-card">
+            {ref.image && (
+              <div className="lib-card__img" style={{ backgroundImage: `url(${ref.image})` }} />
+            )}
+            <div className="lib-card__body">
+              <div className="lib-card__name">{ref.brand || ref.address || ref.headline}</div>
+              <div className="lib-card__sub">
+                {ref.platform ? (ref.platform === 'instagram' ? 'Instagram' : 'Facebook')
+                  : ref.city || ref.url || ''}
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {customRefs.length > 0 && (<>
+        <div className="section-head">
+          <h2 className="section-head__title">Eget materiale ({customRefs.length})</h2>
+        </div>
+        <div className="lib-grid" style={{ marginBottom: 40 }}>
+          {customRefs.map(ref => (
+            <div key={ref.id} className="lib-card lib-card--custom">
+              {ref.image && (
+                <div className="lib-card__img" style={{ backgroundImage: `url(${ref.image})` }} />
+              )}
+              <div className="lib-card__body">
+                <div className="lib-card__name">{ref.brand || ref.address || ref.headline}</div>
+                <div className="lib-card__sub">
+                  {ref.platform ? (ref.platform === 'instagram' ? 'Instagram' : 'Facebook')
+                    : ref.city || ref.url || ''}
+                </div>
+                <button className="lib-card__delete btn btn--danger btn--sm"
+                  onClick={() => { if (window.confirm('Slet reference?')) onDeleteCustom(cat, ref.id); }}>
+                  <TrashIcon /> Slet
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      </>)}
+
+      {refs.length === 0 && (
+        <div className="empty-state">
+          <div className="empty-state__title">Intet materiale endnu.</div>
+          <div className="empty-state__sub">Tilføj dit første referencemateriale herover.</div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+// ── Hero image picker ──────────────────────────────────────────
+const HeroPicker = ({ value, onChange }) => {
+  const [customUrl, setCustomUrl] = useState('');
+  return (
+    <div>
+      <div className="hero-grid">
+        {HERO_IMAGES.map(img => (
+          <div key={img.src}
+            className={`hero-thumb ${value === img.src ? 'hero-thumb--active' : ''}`}
+            style={{ backgroundImage: `url(${img.src})` }}
+            onClick={() => onChange(img.src)}
+            title={img.label}>
+            {value === img.src && (
+              <div className="hero-thumb__check"><CheckIcon /></div>
+            )}
+          </div>
+        ))}
+      </div>
+      <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginTop: 12 }}>
+        <input className="form-input" style={{ flex: 1 }}
+          value={customUrl} onChange={e => setCustomUrl(e.target.value)}
+          placeholder="Eller indsæt egen billede-URL..." />
+        {customUrl && (
+          <button className="btn btn--sm" onClick={() => { onChange(customUrl); setCustomUrl(''); }}>
+            Brug
+          </button>
+        )}
+      </div>
+    </div>
+  );
+};
+
+// ── Proposal form ──────────────────────────────────────────────
+const blankForm = (library, templateOverride = null) => {
   const base = {
-    clientName: '',
-    preparedFor: '',
-    preparedBy: 'Sofus Henningsen, KEYO',
-    date: todayDK(),
-    validUntil: validUntilDK(),
-    greeting: '',
+    clientName: '', preparedFor: '', preparedBy: 'Sofus Henningsen, KEYO',
+    date: todayDK(), validUntil: validUntilDK(), greeting: '',
+    heroImage: 'keyo/img/property-2.jpg',
     selectedServices: { ...KEYO_DATA.DEFAULT_PROPOSAL.selectedServices },
     selectedReferences: {
       meta_ads: [...KEYO_DATA.DEFAULT_PROPOSAL.selectedReferences.meta_ads],
@@ -280,12 +472,12 @@ const blankForm = (templateOverride = null) => {
   };
 };
 
-const ProposalForm = ({ initial, isEdit, onSave, onDelete, onSaveTemplate }) => {
+const ProposalForm = ({ initial, isEdit, library, onSave, onDelete, onSaveTemplate }) => {
   const [form, setForm] = useState(initial);
   const [refCat, setRefCat] = useState('meta_ads');
   const [toast, setToast] = useState(null);
   const [copied, setCopied] = useState(false);
-  const stableId = useRef(genProposalId());
+  const stableId = useRef(genId());
 
   const proposalId = isEdit ? initial.id       : stableId.current;
   const viewerId   = isEdit ? initial.viewerId : slugify(form.clientName) + '-' + stableId.current.slice(-4).toLowerCase();
@@ -310,13 +502,12 @@ const ProposalForm = ({ initial, isEdit, onSave, onDelete, onSaveTemplate }) => 
 
   const handleCopyUrl = () => {
     navigator.clipboard?.writeText(url);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1600);
+    setCopied(true); setTimeout(() => setCopied(false), 1600);
   };
 
   const handleSaveTemplate = () => {
     onSaveTemplate({
-      id: 'tpl_' + Math.random().toString(36).slice(2, 8),
+      id: 'tpl_' + genShortId(),
       name: form.clientName ? `${form.clientName} — pakke` : 'Ny template',
       selectedServices: { ...form.selectedServices },
       selectedReferences: {
@@ -346,14 +537,12 @@ const ProposalForm = ({ initial, isEdit, onSave, onDelete, onSaveTemplate }) => 
           <div className="form-field form-field--full">
             <label className="form-label">Kundenavn *</label>
             <input className="form-input" value={form.clientName}
-              onChange={e => set('clientName', e.target.value)}
-              placeholder="fx Estate Charlottenlund" />
+              onChange={e => set('clientName', e.target.value)} placeholder="fx Estate Charlottenlund" />
           </div>
           <div className="form-field">
             <label className="form-label">Forberedt for (kontaktperson)</label>
             <input className="form-input" value={form.preparedFor}
-              onChange={e => set('preparedFor', e.target.value)}
-              placeholder="fx Jakob Mørch" />
+              onChange={e => set('preparedFor', e.target.value)} placeholder="fx Jakob Mørch" />
           </div>
           <div className="form-field">
             <label className="form-label">Forberedt af</label>
@@ -362,13 +551,11 @@ const ProposalForm = ({ initial, isEdit, onSave, onDelete, onSaveTemplate }) => 
           </div>
           <div className="form-field">
             <label className="form-label">Dato</label>
-            <input className="form-input" value={form.date}
-              onChange={e => set('date', e.target.value)} />
+            <input className="form-input" value={form.date} onChange={e => set('date', e.target.value)} />
           </div>
           <div className="form-field">
             <label className="form-label">Gyldig til</label>
-            <input className="form-input" value={form.validUntil}
-              onChange={e => set('validUntil', e.target.value)} />
+            <input className="form-input" value={form.validUntil} onChange={e => set('validUntil', e.target.value)} />
           </div>
           <div className="form-field form-field--full">
             <label className="form-label">Personlig hilsen</label>
@@ -377,6 +564,14 @@ const ProposalForm = ({ initial, isEdit, onSave, onDelete, onSaveTemplate }) => 
               placeholder="Skriv en kort personlig besked til kunden..." />
           </div>
         </div>
+      </div>
+
+      {/* ─ Hero image ─ */}
+      <div className="form-section">
+        <div className="form-section__head">
+          <h2 className="form-section__title">Hero-billede</h2>
+        </div>
+        <HeroPicker value={form.heroImage} onChange={v => set('heroImage', v)} />
       </div>
 
       {/* ─ Services ─ */}
@@ -398,12 +593,8 @@ const ProposalForm = ({ initial, isEdit, onSave, onDelete, onSaveTemplate }) => 
                   <div className="svc-row__sub">{svc.subtitle}</div>
                 </div>
                 <div>
-                  {svc.monthly > 0 && (
-                    <div className="svc-row__price">{fmtNum(svc.monthly)} kr./mnd</div>
-                  )}
-                  {svc.setup > 0 && (
-                    <div className="svc-row__price-setup">+ {fmtNum(svc.setup)} kr. opstart</div>
-                  )}
+                  {svc.monthly > 0 && <div className="svc-row__price">{fmtNum(svc.monthly)} kr./mnd</div>}
+                  {svc.setup > 0 && <div className="svc-row__price-setup">+ {fmtNum(svc.setup)} kr. opstart</div>}
                 </div>
               </div>
             );
@@ -424,14 +615,13 @@ const ProposalForm = ({ initial, isEdit, onSave, onDelete, onSaveTemplate }) => 
               <button key={cat.id}
                 className={`ref-tab ${refCat === cat.id ? 'ref-tab--active' : ''}`}
                 onClick={() => setRefCat(cat.id)}>
-                {cat.label}
-                <span className="ref-tab__count">{count}</span>
+                {cat.label} <span className="ref-tab__count">{count}</span>
               </button>
             );
           })}
         </div>
         <div className="ref-grid">
-          {(KEYO_DATA.REFERENCES[refCat] || []).map(ref => {
+          {allRefs(refCat, library).map(ref => {
             const on = isRefOn(refCat, ref.id);
             const name = ref.brand || ref.address || ref.headline || ref.id;
             const sub = ref.platform
@@ -444,7 +634,7 @@ const ProposalForm = ({ initial, isEdit, onSave, onDelete, onSaveTemplate }) => 
                   <Toggle on={on} onChange={v => setRef(refCat, ref.id, v)} />
                 </div>
                 <div>
-                  <div className="ref-item__name">{name}</div>
+                  <div className="ref-item__name">{name}{ref.custom && <span style={{ fontSize: 9, marginLeft: 6, color: 'var(--keyo-green)', fontWeight: 500 }}>Eget</span>}</div>
                   <div className="ref-item__sub">{sub}</div>
                 </div>
               </div>
@@ -455,9 +645,7 @@ const ProposalForm = ({ initial, isEdit, onSave, onDelete, onSaveTemplate }) => 
 
       {/* ─ Actions ─ */}
       <div className="form-bar">
-        <div className="form-bar__url">
-          URL: <code>?id={viewerId}</code>
-        </div>
+        <div className="form-bar__url">URL: <code>?id={viewerId}</code></div>
         <button className="btn" onClick={handleSaveTemplate}>Gem som template</button>
         <button className="btn" onClick={handleCopyUrl}>
           <LinkIcon /> {copied ? 'Kopieret' : 'Kopiér URL'}
@@ -478,70 +666,71 @@ const ProposalForm = ({ initial, isEdit, onSave, onDelete, onSaveTemplate }) => 
 
 // ── Admin root ─────────────────────────────────────────────────
 const AdminApp = () => {
-  const [proposals, setProposals] = useState(loadProposals);
-  const [templates, setTemplates] = useState(loadTemplates);
-  const [view, setView]           = useState('dashboard'); // 'dashboard' | 'new' | 'edit'
-  const [activeId, setActiveId]   = useState(null);
-  const [applyTpl, setApplyTpl]   = useState(null);
+  const [proposals, setProposals] = useState(() => load(PROPOSALS_KEY, []));
+  const [templates, setTemplates] = useState(() => load(TEMPLATES_KEY, []));
+  const [library,   setLibrary]   = useState(() => load(LIBRARY_KEY,   { meta_ads: [], flyers: [], landing: [] }));
+
+  const [view,      setView]      = useState('dashboard'); // 'dashboard' | 'library' | 'new' | 'edit'
+  const [activeId,  setActiveId]  = useState(null);
+  const [applyTpl,  setApplyTpl]  = useState(null);
+  const [mainTab,   setMainTab]   = useState('dashboard'); // 'dashboard' | 'library'
 
   const activeProp = proposals.find(p => p.id === activeId) || null;
 
   const goNew = (tpl = null) => { setApplyTpl(tpl); setActiveId(null); setView('new'); };
   const goEdit = (id) => { setActiveId(id); setView('edit'); };
-  const goDash = () => { setActiveId(null); setView('dashboard'); };
+  const goDash = () => { setActiveId(null); setView(mainTab); };
 
   const handleSave = (form, proposalId, viewerId) => {
     const entry = {
-      id: proposalId,
-      viewerId,
-      clientName:   form.clientName,
-      preparedFor:  form.preparedFor,
-      preparedBy:   form.preparedBy,
-      date:         form.date,
-      validUntil:   form.validUntil,
-      greeting:     form.greeting,
-      selectedServices:   form.selectedServices,
-      selectedReferences: form.selectedReferences,
-      customServices:     form.customServices || [],
-      calcInputs:         form.calcInputs,
-      createdAt:   view === 'edit' ? activeProp.createdAt : nowIso(),
-      updatedAt:   nowIso(),
+      id: proposalId, viewerId,
+      clientName: form.clientName, preparedFor: form.preparedFor, preparedBy: form.preparedBy,
+      date: form.date, validUntil: form.validUntil, greeting: form.greeting,
+      heroImage: form.heroImage,
+      selectedServices: form.selectedServices, selectedReferences: form.selectedReferences,
+      customServices: form.customServices || [], calcInputs: form.calcInputs,
+      createdAt: view === 'edit' ? activeProp.createdAt : nowIso(),
+      updatedAt: nowIso(),
     };
     const next = view === 'edit'
       ? proposals.map(p => p.id === activeId ? entry : p)
       : [entry, ...proposals];
-    setProposals(next);
-    saveProposals(next);
+    setProposals(next); save(PROPOSALS_KEY, next);
     syncToViewer(entry);
-    setActiveId(entry.id);
-    setView('edit');
+    setActiveId(entry.id); setView('edit');
   };
 
   const handleDelete = () => {
     const next = proposals.filter(p => p.id !== activeId);
-    setProposals(next);
-    saveProposals(next);
+    setProposals(next); save(PROPOSALS_KEY, next);
     goDash();
   };
 
   const handleSaveTemplate = (t) => {
-    const next = [t, ...templates];
-    setTemplates(next);
-    saveTemplates(next);
+    const next = [t, ...templates]; setTemplates(next); save(TEMPLATES_KEY, next);
+  };
+  const handleDeleteTemplate = (id) => {
+    const next = templates.filter(t => t.id !== id); setTemplates(next); save(TEMPLATES_KEY, next);
   };
 
-  const handleDeleteTemplate = (id) => {
-    const next = templates.filter(t => t.id !== id);
-    setTemplates(next);
-    saveTemplates(next);
+  const handleAddToLibrary = (cat, ref) => {
+    const next = { ...library, [cat]: [...(library[cat] || []), ref] };
+    setLibrary(next); save(LIBRARY_KEY, next);
   };
+  const handleDeleteFromLibrary = (cat, id) => {
+    const next = { ...library, [cat]: (library[cat] || []).filter(r => r.id !== id) };
+    setLibrary(next); save(LIBRARY_KEY, next);
+  };
+
+  const switchMainTab = (t) => { setMainTab(t); setView(t); setActiveId(null); };
 
   const topbarTitle = view === 'new' ? 'Nyt tilbud'
     : view === 'edit' && activeProp ? activeProp.clientName
+    : view === 'library' ? 'Referencebiblitek'
     : 'Dashboard';
 
   const formKey = view === 'edit' ? activeId : `new-${applyTpl?.id || 'blank'}`;
-  const formInitial = view === 'edit' ? activeProp : blankForm(applyTpl);
+  const formInitial = view === 'edit' ? activeProp : blankForm(library, applyTpl);
 
   return (
     <div className="admin">
@@ -552,19 +741,29 @@ const AdminApp = () => {
             <KeyoWordmark />
             <span className="sidebar-brand-tag">Admin</span>
           </div>
-          <button className="new-btn" onClick={() => goNew()}>
-            <PlusIcon /> Nyt tilbud
+          <button className="new-btn" onClick={() => goNew()}><PlusIcon /> Nyt tilbud</button>
+        </div>
+
+        {/* Main nav */}
+        <div className="sidebar-nav">
+          <button className={`sidebar-nav__btn ${mainTab === 'dashboard' && view !== 'new' && view !== 'edit' ? 'sidebar-nav__btn--active' : ''}`}
+            onClick={() => switchMainTab('dashboard')}>
+            Dashboard
+          </button>
+          <button className={`sidebar-nav__btn ${view === 'library' ? 'sidebar-nav__btn--active' : ''}`}
+            onClick={() => switchMainTab('library')}>
+            Bibliotek
           </button>
         </div>
 
+        {/* Proposal list */}
         <div className="proposals-list">
-          {proposals.length === 0 ? (
-            <div className="proposals-empty">
-              Ingen tilbud endnu.<br />Opret dit første herover.
-            </div>
-          ) : proposals.map(p => (
-            <ProposalCard key={p.id} p={p} isActive={activeId === p.id} onClick={() => goEdit(p.id)} />
-          ))}
+          {proposals.length === 0
+            ? <div className="proposals-empty">Ingen tilbud endnu.<br />Opret dit første herover.</div>
+            : proposals.map(p => (
+                <ProposalCard key={p.id} p={p} isActive={activeId === p.id} onClick={() => goEdit(p.id)} />
+              ))
+          }
         </div>
       </aside>
 
@@ -573,12 +772,11 @@ const AdminApp = () => {
         <div className="admin-topbar">
           <span className="admin-topbar__title">{topbarTitle}</span>
           <div className="admin-topbar__actions">
-            {view !== 'dashboard' && (
+            {(view === 'new' || view === 'edit') && (
               <button className="btn" onClick={goDash}>← Oversigt</button>
             )}
             {view === 'edit' && activeProp && (
-              <a href={proposalUrl(activeProp.viewerId)} target="_blank" rel="noopener"
-                className="btn">
+              <a href={proposalUrl(activeProp.viewerId)} target="_blank" rel="noopener" className="btn">
                 <ExternalIcon /> Se tilbud
               </a>
             )}
@@ -587,12 +785,16 @@ const AdminApp = () => {
 
         <div className="admin-content">
           {view === 'dashboard' && (
-            <Dashboard
-              proposals={proposals}
-              templates={templates}
+            <Dashboard proposals={proposals} templates={templates}
               onNew={() => goNew()}
-              onApplyTemplate={(t) => goNew(t)}
+              onApplyTemplate={t => goNew(t)}
               onDeleteTemplate={handleDeleteTemplate}
+            />
+          )}
+          {view === 'library' && (
+            <LibraryView library={library}
+              onAddCustom={handleAddToLibrary}
+              onDeleteCustom={handleDeleteFromLibrary}
             />
           )}
           {(view === 'new' || view === 'edit') && formInitial && (
@@ -600,6 +802,7 @@ const AdminApp = () => {
               key={formKey}
               initial={formInitial}
               isEdit={view === 'edit'}
+              library={library}
               onSave={handleSave}
               onDelete={handleDelete}
               onSaveTemplate={handleSaveTemplate}

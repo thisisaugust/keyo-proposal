@@ -31,8 +31,8 @@ const KeyoWordmark = () => (
   </svg>
 );
 
-// ----- Sidebar -----
-const Sidebar = ({ tab, setTab, state, mode, setMode }) => {
+// ----- Sidebar — client view only, no admin controls -----
+const Sidebar = ({ tab, setTab, state }) => {
   const activeServicesCount =
     KEYO_DATA.STANDARD_SERVICES.filter(s => state.selectedServices[s.id]).length +
     state.customServices.filter(s => state.selectedServices[s.id] !== false).length;
@@ -64,31 +64,6 @@ const Sidebar = ({ tab, setTab, state, mode, setMode }) => {
             Referencer
             <span className="sidebar__tab-count">{activeRefsCount}</span>
           </button>
-        </div>
-      </div>
-
-      <div className="sidebar__bottom">
-        <div>
-          <div className="sidebar__section-label">Visning</div>
-          <div className="sidebar__mode">
-            <div className="mode-pill">
-              <button
-                className={`mode-pill__opt ${mode === "admin" ? "mode-pill__opt--active" : ""}`}
-                onClick={() => setMode("admin")}
-              >Admin</button>
-              <button
-                className={`mode-pill__opt ${mode === "client" ? "mode-pill__opt--active" : ""}`}
-                onClick={() => setMode("client")}
-              >Kunde</button>
-            </div>
-          </div>
-        </div>
-
-        <div className="sidebar__client-card">
-          <div className="sidebar__client-eyebrow">Tilbud til</div>
-          <div className="sidebar__client-name">{state.clientName}</div>
-          <div className="sidebar__client-meta">{state.proposalId}</div>
-          <div className="sidebar__client-meta">{state.date}</div>
         </div>
       </div>
     </aside>
@@ -167,8 +142,8 @@ const App = () => {
   const proposalId = useProposalId();
   const [state, setStateRaw] = useState(() => loadProposal(proposalId));
   const [tab, setTab] = useState("offer");
-  const [mode, setMode] = useState("admin");
   const scrollRef = useRef(null);
+  const isAdmin = false;
 
   useEffect(() => {
     try { localStorage.setItem(STORAGE_KEY(proposalId), JSON.stringify(state)); } catch (e) {}
@@ -192,13 +167,12 @@ const App = () => {
   }, [tab]);
 
   const setState = (patch) => setStateRaw((s) => ({ ...s, ...patch }));
-  const isAdmin = mode === "admin";
 
   return (
     <div className="app">
-      <Sidebar tab={tab} setTab={setTab} state={state} mode={mode} setMode={setMode} />
+      <Sidebar tab={tab} setTab={setTab} state={state} />
       <div className="app__main">
-        <TopBar tab={tab} mode={mode} proposalId={proposalId} state={state} scrollRef={scrollRef} />
+        <TopBar tab={tab} mode="client" proposalId={proposalId} state={state} scrollRef={scrollRef} />
         <div className="scroll" ref={scrollRef}>
           {tab === "offer"
             ? <TabOffer state={state} setState={setState} isAdmin={isAdmin} />

@@ -257,7 +257,7 @@ const Hero = ({ state, setState, isAdmin, monthlyTotal, activeServices }) => {
 
   return (
     <section className={`hero ${mounted ? "hero--mounted" : ""}`}>
-      <div className="hero__photo" style={{ backgroundImage: "url('keyo/img/property-2.jpg')" }} />
+      <div className="hero__photo" style={{ backgroundImage: `url('${state.heroImage || 'keyo/img/property-2.jpg'}')` }} />
       <div className="hero__overlay" />
       <div className="hero__content">
         <div className="hero__top">

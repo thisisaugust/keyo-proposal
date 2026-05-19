@@ -275,6 +275,7 @@ window.KEYO_DATA = (function () {
     proposalId: "KEYO-2026-0184",
     greeting:
       "Tak for den gode snak i sidste uge. Jeg har sammensat et oplæg, der tager fat dér hvor vi ser den klareste effekt på jeres leadstrøm — Meta-annoncering på de aktive boliger, en prisberegner på sitet, og rapportering så vi kan måle os frem hver måned.\n\nGiv lyd hvis I vil justere før vi mødes på fredag.",
+    heroImage: "keyo/img/property-2.jpg",
     selectedServices: DEFAULT_SELECTED_SERVICES,
     selectedReferences: DEFAULT_SELECTED_REFERENCES,
     customServices: [],
