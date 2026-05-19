@@ -70,21 +70,39 @@ const save = (key, val) => localStorage.setItem(key, JSON.stringify(val));
 
 const getOpenedInfo = (viewerId) => load(OPENED_PREFIX + viewerId, null);
 
-const syncToViewer = (p) => {
+const syncToViewer = (p, groupData = null) => {
   save(`keyo-proposal:${p.viewerId}`, {
     clientName: p.clientName, preparedFor: p.preparedFor, preparedBy: p.preparedBy,
     date: p.date, validUntil: p.validUntil, proposalId: p.id,
     greeting: p.greeting, heroImage: p.heroImage,
     selectedServices: p.selectedServices, selectedReferences: p.selectedReferences,
     customServices: p.customServices || [], calcInputs: p.calcInputs,
+    groupId: p.groupId || null,
+    groupData: groupData || [],
   });
 };
 
-// Merge standard + custom library refs for a category
-const allRefs = (cat, library) => [
-  ...(KEYO_DATA.REFERENCES[cat] || []),
-  ...(library[cat] || []),
-];
+const computeGroupData = (allProposals, groupId) => {
+  if (!groupId) return [];
+  const members = allProposals
+    .filter(p => p.groupId === groupId)
+    .sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+  return members.map((p, i) => ({
+    viewerId: p.viewerId,
+    proposalId: p.id,
+    label: `Tilbud ${String(i + 1).padStart(2, '0')}`,
+    clientName: p.clientName,
+  }));
+};
+
+// Merge standard + custom library refs for a category, filtering hidden standard refs
+const allRefs = (cat, library) => {
+  const hidden = ((library.hiddenStandard || {})[cat] || []);
+  return [
+    ...(KEYO_DATA.REFERENCES[cat] || []).filter(r => !hidden.includes(r.id)),
+    ...(library[cat] || []),
+  ];
+};
 
 // ── Hero images ───────────────────────────────────────────────
 const HERO_IMAGES = [
@@ -446,7 +464,7 @@ const ServiceLibForm = ({ onSave, onCancel }) => {
 };
 
 // ── Library view ───────────────────────────────────────────────
-const LibraryView = ({ library, onAddCustom, onDeleteCustom, onAddService, onDeleteService }) => {
+const LibraryView = ({ library, onAddCustom, onDeleteCustom, onAddService, onDeleteService, onHideStandard, onRestoreStandard }) => {
   const [activeTab, setActiveTab] = useState('meta_ads'); // 'meta_ads' | 'flyers' | 'landing' | 'services'
   const [adding, setAdding] = useState(false);
 
@@ -524,11 +542,18 @@ const LibraryView = ({ library, onAddCustom, onDeleteCustom, onAddService, onDel
 
       {/* Reference tab content */}
       {!isServicesTab && (<>
-        <div className="section-head">
-          <h2 className="section-head__title">Standard ({(KEYO_DATA.REFERENCES[activeTab] || []).length})</h2>
+        <div className="section-head" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <h2 className="section-head__title">Standard ({(KEYO_DATA.REFERENCES[activeTab] || []).filter(r => !((library.hiddenStandard || {})[activeTab] || []).includes(r.id)).length})</h2>
+          {((library.hiddenStandard || {})[activeTab] || []).length > 0 && (
+            <button className="btn btn--sm" onClick={() => onRestoreStandard(activeTab)}>
+              Gendan {((library.hiddenStandard || {})[activeTab] || []).length} skjult{((library.hiddenStandard || {})[activeTab] || []).length > 1 ? 'e' : ''}
+            </button>
+          )}
         </div>
         <div className="lib-grid" style={{ marginBottom: 40 }}>
-          {(KEYO_DATA.REFERENCES[activeTab] || []).map(ref => (
+          {(KEYO_DATA.REFERENCES[activeTab] || [])
+            .filter(r => !((library.hiddenStandard || {})[activeTab] || []).includes(r.id))
+            .map(ref => (
             <div key={ref.id} className="lib-card">
               {ref.image && (
                 <div className="lib-card__img" style={{ backgroundImage: `url(${ref.image})` }} />
@@ -539,6 +564,10 @@ const LibraryView = ({ library, onAddCustom, onDeleteCustom, onAddService, onDel
                   {ref.platform ? (ref.platform === 'instagram' ? 'Instagram' : 'Facebook')
                     : ref.city || ref.url || ''}
                 </div>
+                <button className="lib-card__delete btn btn--danger btn--sm"
+                  onClick={() => { if (window.confirm('Skjul reference fra bibliotek?')) onHideStandard(activeTab, ref.id); }}>
+                  <TrashIcon /> Skjul
+                </button>
               </div>
             </div>
           ))}
@@ -880,7 +909,10 @@ const ProposalForm = ({ initial, isEdit, library, onSave, onDelete, onSaveTempla
 const AdminApp = () => {
   const [proposals, setProposals] = useState(() => load(PROPOSALS_KEY, []));
   const [templates, setTemplates] = useState(() => load(TEMPLATES_KEY, []));
-  const [library,   setLibrary]   = useState(() => load(LIBRARY_KEY,   { meta_ads: [], flyers: [], landing: [], services: [] }));
+  const [library,   setLibrary]   = useState(() => {
+    const stored = load(LIBRARY_KEY, {});
+    return { meta_ads: [], flyers: [], landing: [], services: [], hiddenStandard: {}, ...stored };
+  });
 
   const [view,      setView]      = useState('dashboard');
   const [activeId,  setActiveId]  = useState(null);
@@ -894,6 +926,7 @@ const AdminApp = () => {
   const goDash = () => { setActiveId(null); setView(mainTab); };
 
   const handleSave = (form, proposalId, viewerId) => {
+    const groupId = view === 'edit' ? (activeProp.groupId || genShortId()) : genShortId();
     const entry = {
       id: proposalId, viewerId,
       clientName: form.clientName, preparedFor: form.preparedFor, preparedBy: form.preparedBy,
@@ -901,6 +934,7 @@ const AdminApp = () => {
       heroImage: form.heroImage,
       selectedServices: form.selectedServices, selectedReferences: form.selectedReferences,
       customServices: form.customServices || [], calcInputs: form.calcInputs,
+      groupId,
       createdAt: view === 'edit' ? activeProp.createdAt : nowIso(),
       updatedAt: nowIso(),
     };
@@ -908,31 +942,50 @@ const AdminApp = () => {
       ? proposals.map(p => p.id === activeId ? entry : p)
       : [entry, ...proposals];
     setProposals(next); save(PROPOSALS_KEY, next);
-    syncToViewer(entry);
+    const groupData = computeGroupData(next, groupId);
+    syncToViewer(entry, groupData);
+    // Update siblings so their groupData stays current
+    next.filter(p => p.groupId === groupId && p.id !== entry.id).forEach(sibling => {
+      const sibData = load(`keyo-proposal:${sibling.viewerId}`, null);
+      if (sibData) save(`keyo-proposal:${sibling.viewerId}`, { ...sibData, groupData });
+    });
     setActiveId(entry.id); setView('edit');
   };
 
   const handleDelete = () => {
     const next = proposals.filter(p => p.id !== activeId);
     setProposals(next); save(PROPOSALS_KEY, next);
+    // Update remaining group members
+    if (activeProp?.groupId) {
+      const groupData = computeGroupData(next, activeProp.groupId);
+      next.filter(p => p.groupId === activeProp.groupId).forEach(sibling => {
+        const sibData = load(`keyo-proposal:${sibling.viewerId}`, null);
+        if (sibData) save(`keyo-proposal:${sibling.viewerId}`, { ...sibData, groupData });
+      });
+    }
     goDash();
   };
 
   const handleDuplicate = () => {
     if (!activeProp) return;
     const newId = genId();
-    const newViewerId = slugify(activeProp.clientName) + '-' + newId.slice(-4).toLowerCase();
+    const newViewerId = slugify(activeProp.clientName.replace(/ — kopi.*$/, '')) + '-' + newId.slice(-4).toLowerCase();
+    const groupId = activeProp.groupId || genShortId();
+    const updatedOriginal = activeProp.groupId ? activeProp : { ...activeProp, groupId };
     const entry = {
       ...activeProp,
       id: newId,
       viewerId: newViewerId,
-      clientName: activeProp.clientName + ' — kopi',
+      clientName: activeProp.clientName.replace(/ — kopi.*$/, '') + ' — kopi',
+      groupId,
       createdAt: nowIso(),
       updatedAt: nowIso(),
     };
-    const next = [entry, ...proposals];
+    const next = [entry, ...proposals.map(p => p.id === activeProp.id ? updatedOriginal : p)];
     setProposals(next); save(PROPOSALS_KEY, next);
-    syncToViewer(entry);
+    const groupData = computeGroupData(next, groupId);
+    syncToViewer(updatedOriginal, groupData);
+    syncToViewer(entry, groupData);
     setActiveId(entry.id); setView('edit');
   };
 
@@ -958,6 +1011,17 @@ const AdminApp = () => {
   };
   const handleDeleteService = (id) => {
     const next = { ...library, services: (library.services || []).filter(s => s.id !== id) };
+    setLibrary(next); save(LIBRARY_KEY, next);
+  };
+
+  const handleHideStandard = (cat, id) => {
+    const hidden = library.hiddenStandard || {};
+    const next = { ...library, hiddenStandard: { ...hidden, [cat]: [...(hidden[cat] || []), id] } };
+    setLibrary(next); save(LIBRARY_KEY, next);
+  };
+  const handleRestoreStandard = (cat) => {
+    const hidden = library.hiddenStandard || {};
+    const next = { ...library, hiddenStandard: { ...hidden, [cat]: [] } };
     setLibrary(next); save(LIBRARY_KEY, next);
   };
 
@@ -1036,6 +1100,8 @@ const AdminApp = () => {
               onDeleteCustom={handleDeleteFromLibrary}
               onAddService={handleAddService}
               onDeleteService={handleDeleteService}
+              onHideStandard={handleHideStandard}
+              onRestoreStandard={handleRestoreStandard}
             />
           )}
           {(view === 'new' || view === 'edit') && formInitial && (

@@ -284,7 +284,8 @@ const Hero = ({ state, setState, isAdmin, monthlyTotal, activeServices }) => {
         <div className="hero__main">
           <span className="hero__eyebrow">Sammensat til {state.clientName}</span>
           <h1 className="hero__title">
-            Tilbud til{" "}
+            Tilbud til
+            <br />
             {isAdmin ? (
               <input
                 className="hero__title-client-input"

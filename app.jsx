@@ -32,11 +32,13 @@ const KeyoWordmark = () => (
 );
 
 // ----- Sidebar — client view only, no admin controls -----
-const Sidebar = ({ tab, setTab, state }) => {
-  const activeServicesCount =
-    KEYO_DATA.STANDARD_SERVICES.filter(s => state.selectedServices[s.id]).length +
-    state.customServices.filter(s => state.selectedServices[s.id] !== false).length;
+const Sidebar = ({ tab, setTab, state, groupData, activeViewerId, onSwitchProposal }) => {
+  const allSvcs = [...KEYO_DATA.STANDARD_SERVICES, ...(state.customServices || [])];
+  const activeServicesCount = allSvcs.filter(s =>
+    s.custom ? state.selectedServices[s.id] !== false : !!state.selectedServices[s.id]
+  ).length;
   const activeRefsCount = Object.values(state.selectedReferences).reduce((s, arr) => s + arr.length, 0);
+  const hasMultiple = groupData && groupData.length > 1;
 
   return (
     <aside className="sidebar">
@@ -44,6 +46,23 @@ const Sidebar = ({ tab, setTab, state }) => {
         <KeyoWordmark />
         <span className="sidebar__brand-tag">Proposal</span>
       </div>
+
+      {hasMultiple && (
+        <div className="sidebar__proposals">
+          <div className="sidebar__section-label">Versioner</div>
+          <div className="sidebar__proposal-tabs">
+            {groupData.map(g => (
+              <button
+                key={g.viewerId}
+                className={`sidebar__proposal-tab ${activeViewerId === g.viewerId ? 'sidebar__proposal-tab--active' : ''}`}
+                onClick={() => onSwitchProposal(g.viewerId)}
+              >
+                {g.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div>
         <div className="sidebar__section-label">Indhold</div>
@@ -105,28 +124,12 @@ const TopBar = ({ tab, mode, proposalId, state, scrollRef }) => {
   return (
     <div className={cls}>
       <div className="topbar__right">
-        <button className="topbar__url-pill" onClick={copyUrl} title="Kopiér unik proposal-URL">
+        <button className="topbar__btn" onClick={handlePrint}>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-            <path d="M10 13a5 5 0 007 0l3-3a5 5 0 00-7-7l-1 1M14 11a5 5 0 00-7 0l-3 3a5 5 0 007 7l1-1"/>
+            <path d="M6 9V3h12v6M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2M6 14h12v7H6z"/>
           </svg>
-          <code>?id={proposalId}</code>
-          <span style={{ opacity: 0.7 }}>{copied ? "Kopieret" : "Kopiér"}</span>
+          Print / PDF
         </button>
-        {mode === "client" ? (
-          <button className="topbar__btn" onClick={handlePrint}>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-              <path d="M6 9V3h12v6M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2M6 14h12v7H6z"/>
-            </svg>
-            Print / PDF
-          </button>
-        ) : (
-          <button className="topbar__btn topbar__btn--primary" onClick={copyUrl}>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M4 12v7a1 1 0 001 1h14a1 1 0 001-1v-7M16 6l-4-4-4 4M12 2v14" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
-            Del med kunde
-          </button>
-        )}
       </div>
     </div>
   );
@@ -134,27 +137,24 @@ const TopBar = ({ tab, mode, proposalId, state, scrollRef }) => {
 
 // ----- App root -----
 const App = () => {
-  const proposalId = useProposalId();
-  const [state, setStateRaw] = useState(() => loadProposal(proposalId));
+  const initialId = useProposalId();
+  const [activeViewerId, setActiveViewerId] = useState(initialId);
+  const [state, setStateRaw] = useState(() => loadProposal(initialId));
   const [tab, setTab] = useState("offer");
   const scrollRef = useRef(null);
   const isAdmin = false;
 
-  useEffect(() => {
-    try { localStorage.setItem(STORAGE_KEY(proposalId), JSON.stringify(state)); } catch (e) {}
-  }, [state, proposalId]);
-
   // Track when proposal is opened so admin dashboard can show last-seen time
   useEffect(() => {
     try {
-      const key = `keyo-opened:${proposalId}`;
+      const key = `keyo-opened:${activeViewerId}`;
       const prev = JSON.parse(localStorage.getItem(key) || '{"count":0}');
       localStorage.setItem(key, JSON.stringify({
         lastOpened: new Date().toISOString(),
         count: (prev.count || 0) + 1,
       }));
     } catch (e) {}
-  }, [proposalId]);
+  }, [activeViewerId]);
 
   // Scroll to top when switching tabs
   useEffect(() => {
@@ -163,11 +163,21 @@ const App = () => {
 
   const setState = (patch) => setStateRaw((s) => ({ ...s, ...patch }));
 
+  const switchProposal = (viewerId) => {
+    setActiveViewerId(viewerId);
+    setStateRaw(loadProposal(viewerId));
+    setTab('offer');
+    if (scrollRef.current) scrollRef.current.scrollTop = 0;
+  };
+
+  const groupData = state.groupData || [];
+
   return (
     <div className="app">
-      <Sidebar tab={tab} setTab={setTab} state={state} />
+      <Sidebar tab={tab} setTab={setTab} state={state}
+        groupData={groupData} activeViewerId={activeViewerId} onSwitchProposal={switchProposal} />
       <div className="app__main">
-        <TopBar tab={tab} mode="client" proposalId={proposalId} state={state} scrollRef={scrollRef} />
+        <TopBar tab={tab} mode="client" proposalId={activeViewerId} state={state} scrollRef={scrollRef} />
         <div className="scroll" ref={scrollRef}>
           {tab === "offer"
             ? <TabOffer state={state} setState={setState} isAdmin={isAdmin} />

@@ -220,7 +220,7 @@ button { font-family: inherit; }
 .topbar__crumb-current { color: inherit; opacity: 1; }
 .topbar__sep { opacity: 0.4; }
 
-.topbar__right { display: flex; align-items: center; gap: 8px; }
+.topbar__right { display: flex; align-items: center; gap: 8px; margin-left: auto; }
 
 /* Pill URL display — uses CTA pill radius; not a glass hud-bar but a real action. */
 .topbar__url-pill {
@@ -800,7 +800,7 @@ button { font-family: inherit; }
   color: var(--ink-900);
   font-variant-numeric: tabular-nums;
 }
-.svc__result-cell--accent .svc__result-value { color: var(--keyo-green-300); }
+.svc__result-cell--accent .svc__result-value { color: #fff; }
 
 /* ============================================================
    Calculator — glass-light over bone (matches design system)
@@ -1440,4 +1440,38 @@ button { font-family: inherit; }
   .svc { break-inside: avoid; }
   .r-item { break-inside: avoid; }
   .svc__body { display: grid !important; }
+}
+
+/* ── Proposal group tabs (multiple proposals per client) ── */
+.sidebar__proposals {
+  padding: 4px 16px 12px;
+  border-bottom: 1px solid rgba(255,255,255,0.07);
+  margin-bottom: 4px;
+}
+.sidebar__proposal-tabs {
+  display: flex;
+  gap: 4px;
+}
+.sidebar__proposal-tab {
+  flex: 1;
+  padding: 7px 4px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-align: center;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.1);
+  color: rgba(255,255,255,0.45);
+  cursor: pointer;
+  transition: all 0.15s;
+  font-family: var(--font-sans);
+}
+.sidebar__proposal-tab--active {
+  background: #fff;
+  color: var(--ink-900);
+  border-color: #fff;
+}
+.sidebar__proposal-tab:hover:not(.sidebar__proposal-tab--active) {
+  background: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.8);
 }
