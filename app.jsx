@@ -174,6 +174,18 @@ const App = () => {
     try { localStorage.setItem(STORAGE_KEY(proposalId), JSON.stringify(state)); } catch (e) {}
   }, [state, proposalId]);
 
+  // Track when proposal is opened so admin dashboard can show last-seen time
+  useEffect(() => {
+    try {
+      const key = `keyo-opened:${proposalId}`;
+      const prev = JSON.parse(localStorage.getItem(key) || '{"count":0}');
+      localStorage.setItem(key, JSON.stringify({
+        lastOpened: new Date().toISOString(),
+        count: (prev.count || 0) + 1,
+      }));
+    } catch (e) {}
+  }, [proposalId]);
+
   // Scroll to top when switching tabs
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = 0;
