@@ -365,7 +365,7 @@ button { font-family: inherit; }
 }
 .hero__top {
   display: flex;
-  justify-content: flex-end;
+  justify-content: flex-start;
 }
 .hero__meta-card {
   display: flex;
@@ -420,12 +420,12 @@ button { font-family: inherit; }
   margin: 0;
   color: #fff;
 }
-.hero__title-client { color: var(--keyo-green-300); display: inline; }
+.hero__title-client { color: #fff; display: inline; }
 .hero__title-client-input {
   background: transparent;
   border: 0;
   font: inherit;
-  color: var(--keyo-green-300);
+  color: rgba(255,255,255,0.9);
   outline: none;
   padding: 0 2px;
   width: auto;
@@ -433,9 +433,9 @@ button { font-family: inherit; }
   letter-spacing: inherit;
   line-height: inherit;
   font-family: inherit;
-  border-bottom: 1px dashed rgba(77,138,114,0.55);
+  border-bottom: 1px dashed rgba(255,255,255,0.35);
 }
-.hero__title-client-input:focus { border-bottom-color: rgba(77,138,114,0.95); }
+.hero__title-client-input:focus { border-bottom-color: rgba(255,255,255,0.8); }
 .hero__lead {
   max-width: 640px;
   color: rgba(255,255,255,0.86);
@@ -1051,7 +1051,7 @@ button { font-family: inherit; }
   font-variant-numeric: tabular-nums;
   color: #fff;
 }
-.totals-band__value--green { color: var(--keyo-green-300); }
+.totals-band__value--green { color: #fff; }
 .totals-band__unit {
   font-size: var(--fs-body);
   color: rgba(255,255,255,0.6);

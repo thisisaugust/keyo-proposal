@@ -457,7 +457,7 @@ const TabOffer = ({ state, setState, isAdmin }) => {
         <div className="totals-band__inner">
           <div>
             <div className="totals-band__label">Månedligt</div>
-            <div className="totals-band__value totals-band__value--green">
+            <div className="totals-band__value">
               {fmtPrice(monthlyTotal)}<span className="totals-band__unit">kr. / mnd</span>
             </div>
             <div className="totals-band__sub">

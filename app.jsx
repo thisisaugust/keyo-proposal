@@ -104,11 +104,6 @@ const TopBar = ({ tab, mode, proposalId, state, scrollRef }) => {
 
   return (
     <div className={cls}>
-      <div className="topbar__left">
-        <span className="topbar__crumb">{state.clientName}</span>
-        <span className="topbar__sep">/</span>
-        <span className="topbar__crumb-current">{tabLabel}</span>
-      </div>
       <div className="topbar__right">
         <button className="topbar__url-pill" onClick={copyUrl} title="Kopiér unik proposal-URL">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">

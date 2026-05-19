@@ -127,6 +127,16 @@ const CheckIcon = () => (
     <path d="M5 13l4 4L19 7"/>
   </svg>
 );
+const CopyIcon = () => (
+  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/>
+  </svg>
+);
+const UploadIcon = () => (
+  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12"/>
+  </svg>
+);
 
 const KeyoWordmark = () => (
   <svg viewBox="0 0 986 293" fill="currentColor" aria-label="KEYO" style={{ height: 14, width: 'auto' }}>
@@ -142,6 +152,42 @@ const Toggle = ({ on, onChange }) => (
 
 // ── Toast ──────────────────────────────────────────────────────
 const Toast = ({ msg }) => <div className="toast">{msg}</div>;
+
+// ── Image upload (FileReader → base64) ─────────────────────────
+const ImageUpload = ({ value, onChange }) => {
+  const fileRef = useRef();
+  const handleFile = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => onChange(ev.target.result);
+    reader.readAsDataURL(file);
+    e.target.value = '';
+  };
+  const isData = value?.startsWith('data:');
+  const urlValue = isData ? '' : (value || '');
+  return (
+    <div className="img-upload">
+      <input type="file" accept="image/*" ref={fileRef} style={{ display: 'none' }} onChange={handleFile} />
+      {value ? (
+        <div className="img-upload__preview" style={{ backgroundImage: `url(${value})` }}>
+          <button className="img-upload__change btn btn--sm" type="button" onClick={() => fileRef.current?.click()}>
+            <UploadIcon /> Skift billede
+          </button>
+          <button className="img-upload__remove" type="button" onClick={() => onChange('')} title="Fjern billede">×</button>
+        </div>
+      ) : (
+        <button className="img-upload__btn" type="button" onClick={() => fileRef.current?.click()}>
+          <UploadIcon /> Upload billede
+        </button>
+      )}
+      <input className="form-input" style={{ marginTop: 8 }}
+        value={urlValue}
+        onChange={e => onChange(e.target.value)}
+        placeholder="Eller indsæt billede-URL..." />
+    </div>
+  );
+};
 
 // ── Proposal sidebar card ──────────────────────────────────────
 const ProposalCard = ({ p, isActive, onClick }) => {
@@ -275,7 +321,10 @@ const CustomRefForm = ({ cat, onSave, onCancel }) => {
           </div>
           {field('Brandnavn *', 'brand', 'fx Estate Charlottenlund')}
           <div className="form-field form-field--full">{field('Annoncetekst', 'copy', 'Kort beskrivende tekst...')}</div>
-          {field('Billede-URL', 'image', 'https://...')}
+          <div className="form-field form-field--full">
+            <label className="form-label">Billede</label>
+            <ImageUpload value={form.image} onChange={v => set('image', v)} />
+          </div>
           {field('Headline (CTA-bar)', 'headline', 'fx Strandvejen 142 · 168 m²')}
           {field('CTA-knaptekst', 'cta', 'Book fremvisning')}
           {field('URL (domain)', 'url', 'fx estate-charlottenlund.dk')}
@@ -283,7 +332,10 @@ const CustomRefForm = ({ cat, onSave, onCancel }) => {
         {cat === 'flyers' && (<>
           <div className="form-field form-field--full">{field('Adresse *', 'address', 'fx Strandvejen 142, 2920 Charlottenlund')}</div>
           {field('Boligtype', 'city', 'fx Fritliggende villa')}
-          {field('Billede-URL', 'image', 'https://...')}
+          <div className="form-field form-field--full">
+            <label className="form-label">Billede</label>
+            <ImageUpload value={form.image} onChange={v => set('image', v)} />
+          </div>
           {field('Rum', 'rooms', '4')}
           {field('Areal (m²)', 'sqm', '168')}
           {field('Grundareal (m²)', 'plot', '920')}
@@ -298,7 +350,10 @@ const CustomRefForm = ({ cat, onSave, onCancel }) => {
           <div className="form-field form-field--full">{field('Underoverskrift', 'sub', 'Kort beskrivelse...')}</div>
           {field('Øjenbryn (eyebrow)', 'eyebrow', 'fx Salgsvurdering')}
           {field('CTA-knaptekst', 'button', 'Bestil vurdering')}
-          {field('Billede-URL', 'image', 'https://...')}
+          <div className="form-field form-field--full">
+            <label className="form-label">Billede</label>
+            <ImageUpload value={form.image} onChange={v => set('image', v)} />
+          </div>
         </>)}
       </div>
       <div style={{ display: 'flex', gap: 8 }}>
@@ -309,81 +364,172 @@ const CustomRefForm = ({ cat, onSave, onCancel }) => {
   );
 };
 
-const LibraryView = ({ library, onAddCustom, onDeleteCustom }) => {
-  const [cat, setCat] = useState('meta_ads');
+// ── Service library form ───────────────────────────────────────
+const blankCustomService = () => ({
+  title: '', subtitle: '', monthly: 0, setup: 0,
+  results: { primary: { label: '', value: '', accent: true }, secondary: { label: '', value: '' } },
+});
+
+const ServiceLibForm = ({ onSave, onCancel }) => {
+  const [form, setForm] = useState(blankCustomService());
+  const [includesText, setIncludesText] = useState('');
+  const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
+  const setResult = (which, key, val) =>
+    set('results', { ...form.results, [which]: { ...form.results[which], [key]: val } });
+
+  const handleSave = () => {
+    if (!form.title.trim()) return;
+    onSave({
+      ...form,
+      id: 'custom_svc_' + genShortId(),
+      custom: true,
+      includes: includesText.split('\n').map(s => s.trim()).filter(Boolean),
+    });
+  };
+
+  return (
+    <div className="custom-ref-form">
+      <div className="form-grid" style={{ marginBottom: 20 }}>
+        <div className="form-field form-field--full">
+          <label className="form-label">Titel *</label>
+          <input className="form-input" value={form.title}
+            onChange={e => set('title', e.target.value)} placeholder="fx Målrettet e-mailflow" />
+        </div>
+        <div className="form-field form-field--full">
+          <label className="form-label">Kort beskrivelse</label>
+          <input className="form-input" value={form.subtitle}
+            onChange={e => set('subtitle', e.target.value)} placeholder="En linje der sælger ydelsen..." />
+        </div>
+        <div className="form-field">
+          <label className="form-label">Månedlig pris (kr.)</label>
+          <input className="form-input" type="number" min="0" value={form.monthly}
+            onChange={e => set('monthly', +e.target.value)} />
+        </div>
+        <div className="form-field">
+          <label className="form-label">Opstart, engangs (kr.)</label>
+          <input className="form-input" type="number" min="0" value={form.setup}
+            onChange={e => set('setup', +e.target.value)} />
+        </div>
+        <div className="form-field form-field--full">
+          <label className="form-label">Inkluderet (én pr. linje)</label>
+          <textarea className="form-textarea" rows={4} value={includesText}
+            onChange={e => setIncludesText(e.target.value)}
+            placeholder={"Opsætning af kampagnestruktur\nLøbende optimering\nMånedlig rapport"} />
+        </div>
+        <div className="form-field">
+          <label className="form-label">Primært resultat — label</label>
+          <input className="form-input" value={form.results.primary.label}
+            onChange={e => setResult('primary', 'label', e.target.value)} placeholder="fx Leads / mnd" />
+        </div>
+        <div className="form-field">
+          <label className="form-label">Primært resultat — værdi</label>
+          <input className="form-input" value={form.results.primary.value}
+            onChange={e => setResult('primary', 'value', e.target.value)} placeholder="fx 80 – 120" />
+        </div>
+        <div className="form-field">
+          <label className="form-label">Sekundært resultat — label</label>
+          <input className="form-input" value={form.results.secondary.label}
+            onChange={e => setResult('secondary', 'label', e.target.value)} placeholder="fx Snit-CPL (kr.)" />
+        </div>
+        <div className="form-field">
+          <label className="form-label">Sekundært resultat — værdi</label>
+          <input className="form-input" value={form.results.secondary.value}
+            onChange={e => setResult('secondary', 'value', e.target.value)} placeholder="fx 55 – 75" />
+        </div>
+      </div>
+      <div style={{ display: 'flex', gap: 8 }}>
+        <button className="btn" onClick={onCancel}>Annullér</button>
+        <button className="btn btn--primary" onClick={handleSave}>Tilføj ydelse</button>
+      </div>
+    </div>
+  );
+};
+
+// ── Library view ───────────────────────────────────────────────
+const LibraryView = ({ library, onAddCustom, onDeleteCustom, onAddService, onDeleteService }) => {
+  const [activeTab, setActiveTab] = useState('meta_ads'); // 'meta_ads' | 'flyers' | 'landing' | 'services'
   const [adding, setAdding] = useState(false);
 
-  const refs = allRefs(cat, library);
-  const customRefs = library[cat] || [];
+  const isServicesTab = activeTab === 'services';
+  const refCat = isServicesTab ? null : activeTab;
+  const refs = refCat ? allRefs(refCat, library) : [];
+  const customRefs = refCat ? (library[refCat] || []) : [];
+  const libServices = library.services || [];
 
-  const handleSave = (ref) => {
-    onAddCustom(cat, ref);
+  const handleSaveRef = (ref) => {
+    onAddCustom(refCat, ref);
     setAdding(false);
+  };
+  const handleSaveService = (svc) => {
+    onAddService(svc);
+    setAdding(false);
+  };
+
+  const switchTab = (t) => { setActiveTab(t); setAdding(false); };
+
+  const tabCount = (id) => {
+    if (id === 'services') return libServices.length;
+    return (KEYO_DATA.REFERENCES[id] || []).length + (library[id] || []).length;
   };
 
   return (
     <div>
       <div className="dash-header">
         <div className="dash-eyebrow">Indhold</div>
-        <h1 className="dash-title">Referencebiblotek.</h1>
+        <h1 className="dash-title">Bibliotek.</h1>
       </div>
       <p style={{ fontSize: 'var(--fs-body)', color: 'var(--ink-500)', fontWeight: 500, marginBottom: 40, marginTop: -24, maxWidth: 560, lineHeight: 1.6 }}>
-        Tilføj og administrér dit referencemateriale her. Alt du tilføjer kan bruges i tilbud.
+        Tilføj og administrér referencemateriale og ydelser. Alt du tilføjer kan bruges i tilbud.
       </p>
 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
         <div className="ref-tabs">
           {REF_CATS.map(c => (
-            <button key={c.id} className={`ref-tab ${cat === c.id ? 'ref-tab--active' : ''}`}
-              onClick={() => { setCat(c.id); setAdding(false); }}>
+            <button key={c.id} className={`ref-tab ${activeTab === c.id ? 'ref-tab--active' : ''}`}
+              onClick={() => switchTab(c.id)}>
               {c.label}
-              <span className="ref-tab__count">{(KEYO_DATA.REFERENCES[c.id] || []).length + (library[c.id] || []).length}</span>
+              <span className="ref-tab__count">{tabCount(c.id)}</span>
             </button>
           ))}
+          <button className={`ref-tab ${activeTab === 'services' ? 'ref-tab--active' : ''}`}
+            onClick={() => switchTab('services')}>
+            Ydelser
+            <span className="ref-tab__count">{libServices.length}</span>
+          </button>
         </div>
         {!adding && (
           <button className="btn btn--primary" onClick={() => setAdding(true)}>
-            <PlusIcon /> Tilføj materiale
+            <PlusIcon /> {isServicesTab ? 'Tilføj ydelse' : 'Tilføj materiale'}
           </button>
         )}
       </div>
 
-      {adding && (
+      {adding && !isServicesTab && (
         <div style={{ marginBottom: 32 }}>
           <div className="section-head" style={{ marginBottom: 20 }}>
-            <h3 className="section-head__title">Nyt {REF_CATS.find(c => c.id === cat)?.label}-materiale</h3>
+            <h3 className="section-head__title">Nyt {REF_CATS.find(c => c.id === activeTab)?.label}-materiale</h3>
           </div>
-          <CustomRefForm cat={cat} onSave={handleSave} onCancel={() => setAdding(false)} />
+          <CustomRefForm cat={activeTab} onSave={handleSaveRef} onCancel={() => setAdding(false)} />
         </div>
       )}
 
-      <div className="section-head">
-        <h2 className="section-head__title">Standard ({(KEYO_DATA.REFERENCES[cat] || []).length})</h2>
-      </div>
-      <div className="lib-grid" style={{ marginBottom: 40 }}>
-        {(KEYO_DATA.REFERENCES[cat] || []).map(ref => (
-          <div key={ref.id} className="lib-card">
-            {ref.image && (
-              <div className="lib-card__img" style={{ backgroundImage: `url(${ref.image})` }} />
-            )}
-            <div className="lib-card__body">
-              <div className="lib-card__name">{ref.brand || ref.address || ref.headline}</div>
-              <div className="lib-card__sub">
-                {ref.platform ? (ref.platform === 'instagram' ? 'Instagram' : 'Facebook')
-                  : ref.city || ref.url || ''}
-              </div>
-            </div>
+      {adding && isServicesTab && (
+        <div style={{ marginBottom: 32 }}>
+          <div className="section-head" style={{ marginBottom: 20 }}>
+            <h3 className="section-head__title">Ny ydelse</h3>
           </div>
-        ))}
-      </div>
+          <ServiceLibForm onSave={handleSaveService} onCancel={() => setAdding(false)} />
+        </div>
+      )}
 
-      {customRefs.length > 0 && (<>
+      {/* Reference tab content */}
+      {!isServicesTab && (<>
         <div className="section-head">
-          <h2 className="section-head__title">Eget materiale ({customRefs.length})</h2>
+          <h2 className="section-head__title">Standard ({(KEYO_DATA.REFERENCES[activeTab] || []).length})</h2>
         </div>
         <div className="lib-grid" style={{ marginBottom: 40 }}>
-          {customRefs.map(ref => (
-            <div key={ref.id} className="lib-card lib-card--custom">
+          {(KEYO_DATA.REFERENCES[activeTab] || []).map(ref => (
+            <div key={ref.id} className="lib-card">
               {ref.image && (
                 <div className="lib-card__img" style={{ backgroundImage: `url(${ref.image})` }} />
               )}
@@ -393,22 +539,73 @@ const LibraryView = ({ library, onAddCustom, onDeleteCustom }) => {
                   {ref.platform ? (ref.platform === 'instagram' ? 'Instagram' : 'Facebook')
                     : ref.city || ref.url || ''}
                 </div>
-                <button className="lib-card__delete btn btn--danger btn--sm"
-                  onClick={() => { if (window.confirm('Slet reference?')) onDeleteCustom(cat, ref.id); }}>
-                  <TrashIcon /> Slet
-                </button>
               </div>
             </div>
           ))}
         </div>
+
+        {customRefs.length > 0 && (<>
+          <div className="section-head">
+            <h2 className="section-head__title">Eget materiale ({customRefs.length})</h2>
+          </div>
+          <div className="lib-grid" style={{ marginBottom: 40 }}>
+            {customRefs.map(ref => (
+              <div key={ref.id} className="lib-card lib-card--custom">
+                {ref.image && (
+                  <div className="lib-card__img" style={{ backgroundImage: `url(${ref.image})` }} />
+                )}
+                <div className="lib-card__body">
+                  <div className="lib-card__name">{ref.brand || ref.address || ref.headline}</div>
+                  <div className="lib-card__sub">
+                    {ref.platform ? (ref.platform === 'instagram' ? 'Instagram' : 'Facebook')
+                      : ref.city || ref.url || ''}
+                  </div>
+                  <button className="lib-card__delete btn btn--danger btn--sm"
+                    onClick={() => { if (window.confirm('Slet reference?')) onDeleteCustom(activeTab, ref.id); }}>
+                    <TrashIcon /> Slet
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </>)}
+
+        {refs.length === 0 && (
+          <div className="empty-state">
+            <div className="empty-state__title">Intet materiale endnu.</div>
+            <div className="empty-state__sub">Tilføj dit første referencemateriale herover.</div>
+          </div>
+        )}
       </>)}
 
-      {refs.length === 0 && (
-        <div className="empty-state">
-          <div className="empty-state__title">Intet materiale endnu.</div>
-          <div className="empty-state__sub">Tilføj dit første referencemateriale herover.</div>
-        </div>
-      )}
+      {/* Services tab content */}
+      {isServicesTab && (<>
+        {libServices.length > 0 ? (
+          <div className="lib-svc-list">
+            {libServices.map(svc => (
+              <div key={svc.id} className="lib-svc-row">
+                <div className="lib-svc-row__info">
+                  <div className="lib-svc-row__title">{svc.title}</div>
+                  <div className="lib-svc-row__sub">{svc.subtitle}</div>
+                </div>
+                <div className="lib-svc-row__pricing">
+                  {svc.monthly > 0 && <span>{fmtNum(svc.monthly)} kr./mnd</span>}
+                  {svc.setup > 0 && <span className="lib-svc-row__setup">+ {fmtNum(svc.setup)} kr. opstart</span>}
+                </div>
+                <button className="btn btn--danger btn--sm"
+                  onClick={() => { if (window.confirm('Slet ydelse?')) onDeleteService(svc.id); }}>
+                  <TrashIcon /> Slet
+                </button>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="empty-state">
+            <div className="empty-state__title">Ingen egne ydelser endnu.</div>
+            <div className="empty-state__sub">Tilføj en ydelse — den vil kunne vælges i alle tilbud.</div>
+          </div>
+        )}
+      </>)}
     </div>
   );
 };
@@ -472,7 +669,7 @@ const blankForm = (library, templateOverride = null) => {
   };
 };
 
-const ProposalForm = ({ initial, isEdit, library, onSave, onDelete, onSaveTemplate }) => {
+const ProposalForm = ({ initial, isEdit, library, onSave, onDelete, onSaveTemplate, onDuplicate }) => {
   const [form, setForm] = useState(initial);
   const [refCat, setRefCat] = useState('meta_ads');
   const [toast, setToast] = useState(null);
@@ -494,9 +691,20 @@ const ProposalForm = ({ initial, isEdit, library, onSave, onDelete, onSaveTempla
 
   const toast_ = (msg) => { setToast(msg); setTimeout(() => setToast(null), 2000); };
 
+  // All services: standard catalog + library custom services
+  const libServices = library.services || [];
+  const allSvcs = [...KEYO_DATA.STANDARD_SERVICES, ...libServices];
+  const activeSvcs = allSvcs.filter(s =>
+    s.custom ? !!form.selectedServices[s.id] : !!form.selectedServices[s.id]
+  );
+  const monthlyTotal = activeSvcs.reduce((s, svc) => s + (svc.monthly || 0), 0);
+  const totalRefs = Object.values(form.selectedReferences).reduce((s, a) => s + a.length, 0);
+
   const handleSave = () => {
     if (!form.clientName.trim()) { toast_('Kundenavn mangler'); return; }
-    onSave(form, proposalId, viewerId);
+    // Embed selected library services as customServices for the viewer
+    const computedCustomServices = libServices.filter(s => !!form.selectedServices[s.id]);
+    onSave({ ...form, customServices: computedCustomServices }, proposalId, viewerId);
     toast_(isEdit ? 'Ændringer gemt' : 'Tilbud oprettet');
   };
 
@@ -519,10 +727,6 @@ const ProposalForm = ({ initial, isEdit, library, onSave, onDelete, onSaveTempla
     });
     toast_('Gemt som template');
   };
-
-  const activeSvcs = KEYO_DATA.STANDARD_SERVICES.filter(s => form.selectedServices[s.id]);
-  const monthlyTotal = activeSvcs.reduce((s, svc) => s + svc.monthly, 0);
-  const totalRefs = Object.values(form.selectedReferences).reduce((s, a) => s + a.length, 0);
 
   return (
     <div className="form">
@@ -583,13 +787,16 @@ const ProposalForm = ({ initial, isEdit, library, onSave, onDelete, onSaveTempla
           </span>
         </div>
         <div className="svc-list">
-          {KEYO_DATA.STANDARD_SERVICES.map(svc => {
+          {allSvcs.map(svc => {
             const on = !!form.selectedServices[svc.id];
             return (
               <div key={svc.id} className={`svc-row ${!on ? 'svc-row--off' : ''}`}>
                 <Toggle on={on} onChange={v => setSvc(svc.id, v)} />
                 <div className="svc-row__info">
-                  <div className="svc-row__name">{svc.title}</div>
+                  <div className="svc-row__name">
+                    {svc.title}
+                    {svc.custom && <span style={{ fontSize: 9, marginLeft: 6, color: 'var(--keyo-green)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Eget</span>}
+                  </div>
                   <div className="svc-row__sub">{svc.subtitle}</div>
                 </div>
                 <div>
@@ -650,6 +857,11 @@ const ProposalForm = ({ initial, isEdit, library, onSave, onDelete, onSaveTempla
         <button className="btn" onClick={handleCopyUrl}>
           <LinkIcon /> {copied ? 'Kopieret' : 'Kopiér URL'}
         </button>
+        {isEdit && onDuplicate && (
+          <button className="btn" onClick={onDuplicate}>
+            <CopyIcon /> Dupliker tilbud
+          </button>
+        )}
         {isEdit && (
           <button className="btn btn--danger"
             onClick={() => { if (window.confirm('Slet tilbud?')) onDelete(); }}>
@@ -668,12 +880,12 @@ const ProposalForm = ({ initial, isEdit, library, onSave, onDelete, onSaveTempla
 const AdminApp = () => {
   const [proposals, setProposals] = useState(() => load(PROPOSALS_KEY, []));
   const [templates, setTemplates] = useState(() => load(TEMPLATES_KEY, []));
-  const [library,   setLibrary]   = useState(() => load(LIBRARY_KEY,   { meta_ads: [], flyers: [], landing: [] }));
+  const [library,   setLibrary]   = useState(() => load(LIBRARY_KEY,   { meta_ads: [], flyers: [], landing: [], services: [] }));
 
-  const [view,      setView]      = useState('dashboard'); // 'dashboard' | 'library' | 'new' | 'edit'
+  const [view,      setView]      = useState('dashboard');
   const [activeId,  setActiveId]  = useState(null);
   const [applyTpl,  setApplyTpl]  = useState(null);
-  const [mainTab,   setMainTab]   = useState('dashboard'); // 'dashboard' | 'library'
+  const [mainTab,   setMainTab]   = useState('dashboard');
 
   const activeProp = proposals.find(p => p.id === activeId) || null;
 
@@ -706,6 +918,24 @@ const AdminApp = () => {
     goDash();
   };
 
+  const handleDuplicate = () => {
+    if (!activeProp) return;
+    const newId = genId();
+    const newViewerId = slugify(activeProp.clientName) + '-' + newId.slice(-4).toLowerCase();
+    const entry = {
+      ...activeProp,
+      id: newId,
+      viewerId: newViewerId,
+      clientName: activeProp.clientName + ' — kopi',
+      createdAt: nowIso(),
+      updatedAt: nowIso(),
+    };
+    const next = [entry, ...proposals];
+    setProposals(next); save(PROPOSALS_KEY, next);
+    syncToViewer(entry);
+    setActiveId(entry.id); setView('edit');
+  };
+
   const handleSaveTemplate = (t) => {
     const next = [t, ...templates]; setTemplates(next); save(TEMPLATES_KEY, next);
   };
@@ -722,11 +952,20 @@ const AdminApp = () => {
     setLibrary(next); save(LIBRARY_KEY, next);
   };
 
+  const handleAddService = (svc) => {
+    const next = { ...library, services: [...(library.services || []), svc] };
+    setLibrary(next); save(LIBRARY_KEY, next);
+  };
+  const handleDeleteService = (id) => {
+    const next = { ...library, services: (library.services || []).filter(s => s.id !== id) };
+    setLibrary(next); save(LIBRARY_KEY, next);
+  };
+
   const switchMainTab = (t) => { setMainTab(t); setView(t); setActiveId(null); };
 
   const topbarTitle = view === 'new' ? 'Nyt tilbud'
     : view === 'edit' && activeProp ? activeProp.clientName
-    : view === 'library' ? 'Referencebiblitek'
+    : view === 'library' ? 'Bibliotek'
     : 'Dashboard';
 
   const formKey = view === 'edit' ? activeId : `new-${applyTpl?.id || 'blank'}`;
@@ -795,6 +1034,8 @@ const AdminApp = () => {
             <LibraryView library={library}
               onAddCustom={handleAddToLibrary}
               onDeleteCustom={handleDeleteFromLibrary}
+              onAddService={handleAddService}
+              onDeleteService={handleDeleteService}
             />
           )}
           {(view === 'new' || view === 'edit') && formInitial && (
@@ -805,6 +1046,7 @@ const AdminApp = () => {
               library={library}
               onSave={handleSave}
               onDelete={handleDelete}
+              onDuplicate={view === 'edit' ? handleDuplicate : null}
               onSaveTemplate={handleSaveTemplate}
             />
           )}
