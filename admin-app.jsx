@@ -737,18 +737,35 @@ const ProposalForm = ({ initial, isEdit, library, onSave, onDelete, onSaveTempla
 // ── Login screen ───────────────────────────────────────────────
 const LoginScreen = ({ onLogin }) => {
   const [email,    setEmail]    = useState('');
-  const [password, setPassword] = useState('');
-  const [mode,     setMode]     = useState('login');
-  const [error,    setError]    = useState('');
-  const [busy,     setBusy]     = useState(false);
+  const [password,     setPassword]     = useState('');
+  const [mode,         setMode]         = useState('login');
+  const [error,        setError]        = useState('');
+  const [busy,         setBusy]         = useState(false);
+  const [needsConfirm, setNeedsConfirm] = useState(false);
+
+  const dkError = (msg) => {
+    if (!msg) return 'Ukendt fejl — prøv igen';
+    if (msg.includes('Email not confirmed'))       return 'Bekræft din e-mail før du logger ind. Tjek din indbakke.';
+    if (msg.includes('Invalid login credentials')) return 'Forkert e-mail eller adgangskode.';
+    if (msg.includes('already registered'))        return 'Denne e-mail er allerede i brug — prøv at logge ind.';
+    if (msg.includes('Password should be'))        return 'Adgangskoden skal være mindst 6 tegn.';
+    if (msg.includes('Unable to validate'))        return 'Ugyldigt e-mailformat.';
+    return msg;
+  };
 
   const handleSubmit = async (e) => {
-    e.preventDefault(); setError(''); setBusy(true);
+    e.preventDefault(); setError(''); setNeedsConfirm(false); setBusy(true);
     const result = mode==='login'
       ? await DB.signIn(email, password)
       : await DB.signUp(email, password);
-    if (result.error) setError(result.error.message);
-    else onLogin(result.user);
+    if (result.error) {
+      setError(dkError(result.error.message));
+    } else if (mode==='signup' && !result.session) {
+      // Supabase sent a confirmation email — session not active yet
+      setNeedsConfirm(true);
+    } else {
+      onLogin(result.user);
+    }
     setBusy(false);
   };
 
@@ -770,10 +787,15 @@ const LoginScreen = ({ onLogin }) => {
             <input className="form-input" type="password" value={password} onChange={e=>setPassword(e.target.value)} required/>
           </div>
           {error && <div style={{color:'#b91c1c',fontSize:'var(--fs-caption)',fontWeight:500}}>{error}</div>}
+          {needsConfirm && (
+            <div style={{background:'#f0fdf4',border:'1px solid #bbf7d0',padding:'10px 14px',fontSize:'var(--fs-caption)',color:'#166534',lineHeight:1.5}}>
+              Konto oprettet. Tjek din e-mail og klik på bekræftelseslinket — log derefter ind herunder.
+            </div>
+          )}
           <button className="btn btn--primary" type="submit" disabled={busy} style={{marginTop:4}}>
             {busy?'Vent...':(mode==='login'?'Log ind':'Opret konto')}
           </button>
-          <button type="button" className="btn" onClick={()=>{setMode(m=>m==='login'?'signup':'login');setError('');}}>
+          <button type="button" className="btn" onClick={()=>{setMode(m=>m==='login'?'signup':'login');setError('');setNeedsConfirm(false);}}>
             {mode==='login'?'Opret ny konto':'Jeg har allerede en konto'}
           </button>
         </form>

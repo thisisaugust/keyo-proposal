@@ -24,7 +24,7 @@ const DB = {
 
   async signUp(email, password) {
     const { data, error } = await db.auth.signUp({ email, password });
-    return { user: data?.user, error };
+    return { user: data?.user, session: data?.session, error };
   },
 
   async signOut() {
