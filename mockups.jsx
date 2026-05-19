@@ -78,30 +78,57 @@ const IGAd = ({ ad }) => (
 
 const AdMockup = ({ ad }) => ad.platform === "instagram" ? <IGAd ad={ad} /> : <FBAd ad={ad} />;
 
-// ----- FLYER (A4 portrait) -----
-const FlyerMockup = ({ flyer }) => (
-  <div className="flyer">
-    <div className="flyer__photo" style={{ backgroundImage: `url(${flyer.image})` }}>
-      <div className="flyer__badge">{flyer.badge}</div>
+// ----- FLYER — generic multi-page OR legacy property -----
+const FlyerMockup = ({ flyer }) => {
+  const [pageIdx, setPageIdx] = React.useState(0);
+  if (flyer.pages !== undefined) {
+    const pages = flyer.pages || [];
+    const activeSrc = pages[pageIdx];
+    return (
+      <div className="flyer">
+        <div className="flyer__photo" style={{ backgroundImage: activeSrc ? `url(${activeSrc})` : 'none', backgroundColor: activeSrc ? 'transparent' : 'var(--bone)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          {!activeSrc && <span style={{ fontSize: 11, color: 'var(--ink-400)' }}>Ingen sider</span>}
+          {pages.length > 1 && (
+            <div className="flyer__page-nav">
+              {pages.map((_, i) => (
+                <button key={i} className={`flyer__page-dot ${i === pageIdx ? 'flyer__page-dot--active' : ''}`}
+                  onClick={(e) => { e.stopPropagation(); setPageIdx(i); }} />
+              ))}
+            </div>
+          )}
+        </div>
+        <div className="flyer__body">
+          {flyer.brand && <div className="flyer__brand">{flyer.brand}</div>}
+          {flyer.title && <div className="flyer__address">{flyer.title}</div>}
+          {flyer.description && <div className="flyer__city">{flyer.description}</div>}
+        </div>
+      </div>
+    );
+  }
+  return (
+    <div className="flyer">
+      <div className="flyer__photo" style={{ backgroundImage: `url(${flyer.image})` }}>
+        {flyer.badge && <div className="flyer__badge">{flyer.badge}</div>}
+      </div>
+      <div className="flyer__body">
+        <div>
+          <div className="flyer__address">{flyer.address}</div>
+          <div className="flyer__city">{flyer.city}</div>
+        </div>
+        <div className="flyer__specs">
+          {flyer.rooms && <span><strong>{flyer.rooms}</strong> vær.</span>}
+          {flyer.sqm && <span><strong>{flyer.sqm} m²</strong></span>}
+          {flyer.plot && <span><strong>{flyer.plot} m²</strong> gr.</span>}
+        </div>
+        {flyer.price && <div className="flyer__price">Kontant {flyer.price} kr.</div>}
+        <div className="flyer__foot">
+          <div className="flyer__brand">{flyer.brand}</div>
+          {flyer.agent && <div>{flyer.agent}</div>}
+        </div>
+      </div>
     </div>
-    <div className="flyer__body">
-      <div>
-        <div className="flyer__address">{flyer.address}</div>
-        <div className="flyer__city">{flyer.city}</div>
-      </div>
-      <div className="flyer__specs">
-        <span><strong>{flyer.rooms}</strong>værelser</span>
-        <span><strong>{flyer.sqm} m²</strong>bolig</span>
-        {flyer.plot && <span><strong>{flyer.plot} m²</strong>grund</span>}
-      </div>
-      <div className="flyer__price">Kontant {flyer.price} kr.</div>
-      <div className="flyer__foot">
-        <div className="flyer__brand">{flyer.brand}</div>
-        <div>{flyer.agent}</div>
-      </div>
-    </div>
-  </div>
-);
+  );
+};
 
 // ----- LANDING PAGE (browser frame) -----
 const LandingMockup = ({ lp }) => (

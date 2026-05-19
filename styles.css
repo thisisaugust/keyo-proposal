@@ -1322,6 +1322,9 @@ button { font-family: inherit; }
   color: var(--ink-500);
 }
 .flyer__brand { font-size: 10px; font-weight: 500; color: var(--keyo-green); }
+.flyer__page-nav { position: absolute; bottom: 8px; left: 50%; transform: translateX(-50%); display: flex; gap: 5px; }
+.flyer__page-dot { width: 7px; height: 7px; border-radius: 50%; background: rgba(255,255,255,0.45); border: 1px solid rgba(255,255,255,0.75); padding: 0; cursor: pointer; }
+.flyer__page-dot--active { background: #fff; }
 
 /* ============================================================
    MOCKUPS — Landing page (browser frame, minimal radii, shadowless)

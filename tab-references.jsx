@@ -56,7 +56,12 @@ const TabReferences = ({ state, setState, isAdmin }) => {
 
   const isOn = (cat, id) => (state.selectedReferences[cat] || []).includes(id);
 
-  const allCatRefs = KEYO_DATA.REFERENCES[activeCat] || [];
+  const stdRefs = KEYO_DATA.REFERENCES[activeCat] || [];
+  const inlineCustom = (state.inlineRefs || {})[activeCat] || [];
+  const allCatRefs = [
+    ...stdRefs,
+    ...inlineCustom.filter(r => !stdRefs.find(s => s.id === r.id)),
+  ];
   const visibleRefs = isAdmin ? allCatRefs : allCatRefs.filter(r => isOn(activeCat, r.id));
 
   const totalActive = Object.values(state.selectedReferences).reduce((s, arr) => s + arr.length, 0);
@@ -85,9 +90,7 @@ const TabReferences = ({ state, setState, isAdmin }) => {
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 40, flexWrap: "wrap", gap: 16 }}>
             <div className="r-tabs">
               {REF_CATS.map((cat) => {
-                const count = isAdmin
-                  ? KEYO_DATA.REFERENCES[cat.id].length
-                  : (state.selectedReferences[cat.id] || []).length;
+                const count = (state.selectedReferences[cat.id] || []).length;
                 return (
                   <button
                     key={cat.id}
