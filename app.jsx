@@ -2,26 +2,9 @@
 
 const { useState, useEffect, useRef } = React;
 
-// Read ?id= from current URL; default to seed.
-const useProposalId = () => {
-  const [id] = useState(() => {
-    const params = new URLSearchParams(window.location.search);
-    return params.get("id") || "estate-charlottenlund";
-  });
-  return id;
-};
-
-const STORAGE_KEY = (id) => `keyo-proposal:${id}`;
-
-const loadProposal = (id) => {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY(id));
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      return { ...KEYO_DATA.DEFAULT_PROPOSAL, ...parsed, proposalId: parsed.proposalId || id.toUpperCase() };
-    }
-  } catch (e) { /* ignore */ }
-  return { ...KEYO_DATA.DEFAULT_PROPOSAL, proposalId: `KEYO-${id.slice(0,16).toUpperCase()}` };
+const getViewerId = () => {
+  const params = new URLSearchParams(window.location.search);
+  return params.get("id") || "estate-charlottenlund";
 };
 
 // ----- KEYO wordmark inline SVG -----
@@ -137,40 +120,57 @@ const TopBar = ({ tab, mode, proposalId, state, scrollRef }) => {
 
 // ----- App root -----
 const App = () => {
-  const initialId = useProposalId();
-  const [activeViewerId, setActiveViewerId] = useState(initialId);
-  const [state, setStateRaw] = useState(() => loadProposal(initialId));
-  const [tab, setTab] = useState("offer");
+  const [activeViewerId, setActiveViewerId] = useState(getViewerId);
+  const [state,     setStateRaw] = useState(null);
+  const [groupData, setGroupData] = useState([]);
+  const [loading,   setLoading]   = useState(true);
+  const [tab,       setTab]       = useState("offer");
   const scrollRef = useRef(null);
   const isAdmin = false;
 
-  // Track when proposal is opened so admin dashboard can show last-seen time
+  const loadAndSet = async (viewerId) => {
+    setLoading(true);
+    const data = await DB.loadForViewer(viewerId);
+    const base = { ...KEYO_DATA.DEFAULT_PROPOSAL };
+    if (data) {
+      const gd = data.groupId ? await DB.loadGroupData(data.groupId) : [];
+      setStateRaw({ ...base, ...data });
+      setGroupData(gd);
+    } else {
+      setStateRaw(base);
+      setGroupData([]);
+    }
+    setLoading(false);
+  };
+
+  useEffect(() => { loadAndSet(activeViewerId); }, []);
+
+  // Track opens so admin can see last-seen time
   useEffect(() => {
-    try {
-      const key = `keyo-opened:${activeViewerId}`;
-      const prev = JSON.parse(localStorage.getItem(key) || '{"count":0}');
-      localStorage.setItem(key, JSON.stringify({
-        lastOpened: new Date().toISOString(),
-        count: (prev.count || 0) + 1,
-      }));
-    } catch (e) {}
+    if (activeViewerId) DB.trackView(activeViewerId).catch(() => {});
   }, [activeViewerId]);
 
-  // Scroll to top when switching tabs
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = 0;
   }, [tab]);
 
-  const setState = (patch) => setStateRaw((s) => ({ ...s, ...patch }));
+  const setState = (patch) => setStateRaw(s => ({ ...s, ...patch }));
 
-  const switchProposal = (viewerId) => {
+  const switchProposal = async (viewerId) => {
     setActiveViewerId(viewerId);
-    setStateRaw(loadProposal(viewerId));
     setTab('offer');
     if (scrollRef.current) scrollRef.current.scrollTop = 0;
+    await loadAndSet(viewerId);
   };
 
-  const groupData = state.groupData || [];
+  if (loading || !state) return (
+    <div style={{display:'grid',placeItems:'center',height:'100vh',background:'var(--ink-900)'}}>
+      <div style={{textAlign:'center',color:'rgba(255,255,255,0.5)'}}>
+        <KeyoWordmark/>
+        <div style={{marginTop:14,fontSize:'var(--fs-caption)',fontWeight:500}}>Indlæser tilbud...</div>
+      </div>
+    </div>
+  );
 
   return (
     <div className="app">

@@ -1,11 +1,6 @@
 // KEYO Admin Dashboard
 
-const { useState, useRef } = React;
-
-const PROPOSALS_KEY = 'keyo-admin-proposals';
-const TEMPLATES_KEY = 'keyo-admin-templates';
-const LIBRARY_KEY   = 'keyo-ref-library';
-const OPENED_PREFIX = 'keyo-opened:';
+const { useState, useEffect, useRef } = React;
 
 // ── Utilities ─────────────────────────────────────────────────
 const genId = (prefix = 'KEYO') => `${prefix}-${new Date().getFullYear()}-${String(Math.floor(Math.random()*9000)+1000)}`;
@@ -25,37 +20,16 @@ const validUntilDK = () => { const d=new Date(); d.setDate(d.getDate()+30); retu
 const fmtNum = (n) => new Intl.NumberFormat('da-DK').format(n);
 const proposalUrl = (v) => window.location.href.replace(/admin(\.html)?.*$/,'') + `?id=${v}`;
 
-const load = (key, fallback) => { try { return JSON.parse(localStorage.getItem(key)||'null')??fallback; } catch { return fallback; } };
-const save = (key, val) => localStorage.setItem(key, JSON.stringify(val));
-const getOpenedInfo = (v) => load(OPENED_PREFIX+v, null);
-
 // Custom refs only (no standard material in admin library)
 const allRefs = (cat, library) => library[cat] || [];
 
-const computeGroupData = (allProposals, groupId) => {
-  if (!groupId) return [];
-  return allProposals.filter(p=>p.groupId===groupId).sort((a,b)=>new Date(a.createdAt)-new Date(b.createdAt)).map((p,i)=>({
-    viewerId: p.viewerId, proposalId: p.id,
-    label: `Tilbud ${String(i+1).padStart(2,'0')}`, clientName: p.clientName,
-  }));
-};
-
-const syncToViewer = (p, groupData=null, library=null) => {
+const computeInlineRefs = (p, library) => {
   const inlineRefs = { meta_ads:[], flyers:[], landing:[] };
-  if (library) {
-    ['meta_ads','flyers','landing'].forEach(cat => {
-      const ids = (p.selectedReferences||{})[cat]||[];
-      inlineRefs[cat] = (library[cat]||[]).filter(r=>ids.includes(r.id));
-    });
-  }
-  save(`keyo-proposal:${p.viewerId}`, {
-    clientName:p.clientName, preparedFor:p.preparedFor, preparedBy:p.preparedBy,
-    date:p.date, validUntil:p.validUntil, proposalId:p.id,
-    greeting:p.greeting, heroImage:p.heroImage,
-    selectedServices:p.selectedServices, selectedReferences:p.selectedReferences,
-    customServices:p.customServices||[], calcInputs:p.calcInputs,
-    inlineRefs, groupId:p.groupId||null, groupData:groupData||[],
+  ['meta_ads','flyers','landing'].forEach(cat => {
+    const ids = (p.selectedReferences||{})[cat]||[];
+    inlineRefs[cat] = (library[cat]||[]).filter(r=>ids.includes(r.id));
   });
+  return inlineRefs;
 };
 
 // ── Hero images ───────────────────────────────────────────────
@@ -258,8 +232,8 @@ const ServicePreview = ({ form, includesText }) => {
 };
 
 // ── Proposal sidebar card ──────────────────────────────────────
-const ProposalCard = ({ p, isActive, onClick }) => {
-  const info = getOpenedInfo(p.viewerId), seen = info?.lastOpened;
+const ProposalCard = ({ p, isActive, onClick, views }) => {
+  const info = views?.[p.viewerId], seen = info?.lastOpened;
   return (
     <div className={`pcard ${ageClass(p.createdAt)} ${isActive?'pcard--active':''}`} onClick={onClick}>
       <div className="pcard__name">{p.clientName}</div>
@@ -760,72 +734,170 @@ const ProposalForm = ({ initial, isEdit, library, onSave, onDelete, onSaveTempla
   );
 };
 
+// ── Login screen ───────────────────────────────────────────────
+const LoginScreen = ({ onLogin }) => {
+  const [email,    setEmail]    = useState('');
+  const [password, setPassword] = useState('');
+  const [mode,     setMode]     = useState('login');
+  const [error,    setError]    = useState('');
+  const [busy,     setBusy]     = useState(false);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault(); setError(''); setBusy(true);
+    const result = mode==='login'
+      ? await DB.signIn(email, password)
+      : await DB.signUp(email, password);
+    if (result.error) setError(result.error.message);
+    else onLogin(result.user);
+    setBusy(false);
+  };
+
+  return (
+    <div style={{display:'grid',placeItems:'center',height:'100vh',background:'var(--ink-900)'}}>
+      <div style={{background:'var(--canvas)',padding:40,width:360}}>
+        <KeyoWordmark/>
+        <h2 style={{margin:'24px 0 4px',fontSize:'var(--fs-h4)',fontWeight:'var(--fw-medium)',color:'var(--ink-900)'}}>
+          {mode==='login'?'Log ind':'Opret konto'}
+        </h2>
+        <p style={{fontSize:'var(--fs-caption)',color:'var(--ink-500)',marginBottom:24}}>KEYO · Admin</p>
+        <form onSubmit={handleSubmit} style={{display:'flex',flexDirection:'column',gap:16}}>
+          <div className="form-field">
+            <label className="form-label">E-mail</label>
+            <input className="form-input" type="email" value={email} onChange={e=>setEmail(e.target.value)} required autoFocus/>
+          </div>
+          <div className="form-field">
+            <label className="form-label">Adgangskode</label>
+            <input className="form-input" type="password" value={password} onChange={e=>setPassword(e.target.value)} required/>
+          </div>
+          {error && <div style={{color:'#b91c1c',fontSize:'var(--fs-caption)',fontWeight:500}}>{error}</div>}
+          <button className="btn btn--primary" type="submit" disabled={busy} style={{marginTop:4}}>
+            {busy?'Vent...':(mode==='login'?'Log ind':'Opret konto')}
+          </button>
+          <button type="button" className="btn" onClick={()=>{setMode(m=>m==='login'?'signup':'login');setError('');}}>
+            {mode==='login'?'Opret ny konto':'Jeg har allerede en konto'}
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+};
+
 // ── Admin root ─────────────────────────────────────────────────
 const AdminApp = () => {
-  const [proposals, setProposals] = useState(()=>load(PROPOSALS_KEY,[]));
-  const [templates, setTemplates] = useState(()=>load(TEMPLATES_KEY,[]));
-  const [library,   setLibrary]   = useState(()=>{ const s=load(LIBRARY_KEY,{}); return {meta_ads:[],flyers:[],landing:[],services:[],images:[],...s}; });
+  const [user,      setUser]      = useState(null);
+  const [authReady, setAuthReady] = useState(false);
+  const [proposals, setProposals] = useState([]);
+  const [templates, setTemplates] = useState([]);
+  const [library,   setLibrary]   = useState({meta_ads:[],flyers:[],landing:[],services:[],images:[]});
+  const [views,     setViews]     = useState({});
+  const [loading,   setLoading]   = useState(false);
 
   const [view,     setView]     = useState('dashboard');
   const [activeId, setActiveId] = useState(null);
   const [applyTpl, setApplyTpl] = useState(null);
   const [mainTab,  setMainTab]  = useState('dashboard');
 
+  // Check auth state on mount
+  useEffect(() => {
+    DB.getSession().then(session => {
+      setUser(session?.user || null);
+      setAuthReady(true);
+    });
+    const { data: { subscription } } = db.auth.onAuthStateChange((_evt, session) => {
+      setUser(session?.user || null);
+    });
+    return () => subscription.unsubscribe();
+  }, []);
+
+  // Load all data once authenticated
+  useEffect(() => {
+    if (!user) return;
+    setLoading(true);
+    Promise.all([
+      DB.loadProposals(),
+      DB.loadTemplates(),
+      DB.loadLibrary(),
+      DB.loadAllViews(),
+    ]).then(([props, tmpls, lib, vws]) => {
+      setProposals(props);
+      setTemplates(tmpls);
+      setLibrary(lib);
+      setViews(vws);
+      setLoading(false);
+    });
+  }, [user]);
+
   const activeProp = proposals.find(p=>p.id===activeId)||null;
-  const goNew = (tpl=null) => { setApplyTpl(tpl); setActiveId(null); setView('new'); };
+  const goNew  = (tpl=null) => { setApplyTpl(tpl); setActiveId(null); setView('new'); };
   const goEdit = (id) => { setActiveId(id); setView('edit'); };
   const goDash = () => { setActiveId(null); setView(mainTab); };
 
   const handleSave = (form, proposalId, viewerId) => {
     const groupId = view==='edit' ? (activeProp.groupId||genShortId()) : genShortId();
-    const entry = { id:proposalId, viewerId, clientName:form.clientName, preparedFor:form.preparedFor, preparedBy:form.preparedBy, date:form.date, validUntil:form.validUntil, greeting:form.greeting, heroImage:form.heroImage, selectedServices:form.selectedServices, selectedReferences:form.selectedReferences, customServices:form.customServices||[], calcInputs:form.calcInputs, groupId, createdAt:view==='edit'?activeProp.createdAt:nowIso(), updatedAt:nowIso() };
+    const entry = {
+      id:proposalId, viewerId, clientName:form.clientName,
+      preparedFor:form.preparedFor, preparedBy:form.preparedBy,
+      date:form.date, validUntil:form.validUntil,
+      greeting:form.greeting, heroImage:form.heroImage,
+      selectedServices:form.selectedServices, selectedReferences:form.selectedReferences,
+      customServices:form.customServices||[], calcInputs:form.calcInputs,
+      groupId, createdAt:view==='edit'?activeProp.createdAt:nowIso(), updatedAt:nowIso(),
+    };
     const next = view==='edit' ? proposals.map(p=>p.id===activeId?entry:p) : [entry,...proposals];
-    setProposals(next); save(PROPOSALS_KEY,next);
-    const groupData = computeGroupData(next,groupId);
-    syncToViewer(entry,groupData,library);
-    next.filter(p=>p.groupId===groupId&&p.id!==entry.id).forEach(sib=>{ const d=load(`keyo-proposal:${sib.viewerId}`,null); if(d) save(`keyo-proposal:${sib.viewerId}`,{...d,groupData}); });
+    setProposals(next);
+    DB.saveProposal({ ...entry, inlineRefs:computeInlineRefs(entry,library) });
     setActiveId(entry.id); setView('edit');
   };
 
   const handleDelete = () => {
-    const next = proposals.filter(p=>p.id!==activeId);
-    setProposals(next); save(PROPOSALS_KEY,next);
-    if (activeProp?.groupId) {
-      const gd = computeGroupData(next,activeProp.groupId);
-      next.filter(p=>p.groupId===activeProp.groupId).forEach(sib=>{ const d=load(`keyo-proposal:${sib.viewerId}`,null); if(d) save(`keyo-proposal:${sib.viewerId}`,{...d,groupData:gd}); });
-    }
+    setProposals(proposals.filter(p=>p.id!==activeId));
+    DB.deleteProposal(activeId);
     goDash();
   };
 
   const handleDuplicate = () => {
     if (!activeProp) return;
-    const newId = genId(); const groupId = activeProp.groupId||genShortId();
+    const newId = genId();
+    const groupId = activeProp.groupId||genShortId();
     const newViewerId = slugify(activeProp.clientName.replace(/ — kopi.*$/,''))+'-'+newId.slice(-4).toLowerCase();
     const updOrig = activeProp.groupId ? activeProp : {...activeProp,groupId};
     const entry = {...activeProp,id:newId,viewerId:newViewerId,clientName:activeProp.clientName.replace(/ — kopi.*$/,'')+' — kopi',groupId,createdAt:nowIso(),updatedAt:nowIso()};
     const next = [entry,...proposals.map(p=>p.id===activeProp.id?updOrig:p)];
-    setProposals(next); save(PROPOSALS_KEY,next);
-    const gd = computeGroupData(next,groupId);
-    syncToViewer(updOrig,gd,library); syncToViewer(entry,gd,library);
+    setProposals(next);
+    DB.saveProposal({...updOrig, inlineRefs:computeInlineRefs(updOrig,library)});
+    DB.saveProposal({...entry,   inlineRefs:computeInlineRefs(entry,library)});
     setActiveId(entry.id); setView('edit');
   };
 
-  const handleSaveTemplate = (t) => { const n=[t,...templates]; setTemplates(n); save(TEMPLATES_KEY,n); };
-  const handleDeleteTemplate = (id) => { const n=templates.filter(t=>t.id!==id); setTemplates(n); save(TEMPLATES_KEY,n); };
+  const handleSaveTemplate   = (t)  => { setTemplates(n=>[t,...n]); DB.saveTemplate(t); };
+  const handleDeleteTemplate = (id) => { setTemplates(n=>n.filter(t=>t.id!==id)); DB.deleteTemplate(id); };
 
-  const saveLib = (next) => { setLibrary(next); save(LIBRARY_KEY,next); };
-  const handleAddToLibrary = (cat,ref) => saveLib({...library,[cat]:[...(library[cat]||[]),ref]});
-  const handleDeleteFromLibrary = (cat,id) => saveLib({...library,[cat]:(library[cat]||[]).filter(r=>r.id!==id)});
-  const handleAddService = (svc) => saveLib({...library,services:[...(library.services||[]),svc]});
-  const handleDeleteService = (id) => saveLib({...library,services:(library.services||[]).filter(s=>s.id!==id)});
-  const handleAddImage = (img) => saveLib({...library,images:[...(library.images||[]),img]});
-  const handleDeleteImage = (id) => saveLib({...library,images:(library.images||[]).filter(i=>i.id!==id)});
+  const saveLib = (next) => { setLibrary(next); DB.saveLibrary(next); };
+  const handleAddToLibrary      = (cat,ref) => saveLib({...library,[cat]:[...(library[cat]||[]),ref]});
+  const handleDeleteFromLibrary = (cat,id)  => saveLib({...library,[cat]:(library[cat]||[]).filter(r=>r.id!==id)});
+  const handleAddService    = (svc) => saveLib({...library,services:[...(library.services||[]),svc]});
+  const handleDeleteService = (id)  => saveLib({...library,services:(library.services||[]).filter(s=>s.id!==id)});
+  const handleAddImage      = (img) => saveLib({...library,images:[...(library.images||[]),img]});
+  const handleDeleteImage   = (id)  => saveLib({...library,images:(library.images||[]).filter(i=>i.id!==id)});
 
   const switchMainTab = (t) => { setMainTab(t); setView(t); setActiveId(null); };
 
+  // ── Render states ──────────────────────────────────────────
+  if (!authReady) return (
+    <div style={{display:'grid',placeItems:'center',height:'100vh',background:'var(--ink-900)',color:'rgba(255,255,255,0.4)',fontSize:'var(--fs-caption)'}}>
+      Indlæser...
+    </div>
+  );
+  if (!user) return <LoginScreen onLogin={setUser} />;
+  if (loading) return (
+    <div style={{display:'grid',placeItems:'center',height:'100vh',color:'var(--ink-400)',fontSize:'var(--fs-body)',fontWeight:500}}>
+      Henter data...
+    </div>
+  );
+
   const topbarTitle = view==='new'?'Nyt tilbud':view==='edit'&&activeProp?activeProp.clientName:view==='library'?'Bibliotek':'Dashboard';
-  const formKey = view==='edit' ? activeId : `new-${applyTpl?.id||'blank'}`;
-  const formInitial = view==='edit' ? activeProp : blankForm(library,applyTpl);
+  const formKey     = view==='edit' ? activeId : `new-${applyTpl?.id||'blank'}`;
+  const formInitial = view==='edit' ? activeProp : blankForm(library, applyTpl);
 
   return (
     <div className="admin">
@@ -839,8 +911,9 @@ const AdminApp = () => {
           <button className={`sidebar-nav__btn ${view==='library'?'sidebar-nav__btn--active':''}`} onClick={()=>switchMainTab('library')}>Bibliotek</button>
         </div>
         <div className="proposals-list">
-          {proposals.length===0 ? <div className="proposals-empty">Ingen tilbud endnu.<br/>Opret dit første herover.</div>
-            : proposals.map(p=><ProposalCard key={p.id} p={p} isActive={activeId===p.id} onClick={()=>goEdit(p.id)}/>)}
+          {proposals.length===0
+            ? <div className="proposals-empty">Ingen tilbud endnu.<br/>Opret dit første herover.</div>
+            : proposals.map(p=><ProposalCard key={p.id} p={p} isActive={activeId===p.id} onClick={()=>goEdit(p.id)} views={views}/>)}
         </div>
       </aside>
       <div className="admin__main">
@@ -849,6 +922,7 @@ const AdminApp = () => {
           <div className="admin-topbar__actions">
             {(view==='new'||view==='edit')&&<button className="btn" onClick={goDash}>← Oversigt</button>}
             {view==='edit'&&activeProp&&<a href={proposalUrl(activeProp.viewerId)} target="_blank" rel="noopener" className="btn"><ExternalIcon /> Se tilbud</a>}
+            <button className="btn" style={{marginLeft:8}} onClick={async()=>{await DB.signOut();setUser(null);setProposals([]);setTemplates([]);setLibrary({meta_ads:[],flyers:[],landing:[],services:[],images:[]});}}>Log ud</button>
           </div>
         </div>
         <div className="admin-content">
